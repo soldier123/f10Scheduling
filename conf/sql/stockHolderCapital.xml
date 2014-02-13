@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>股本股东sql</comment>
+
+    <!--10大股东-->
+    <entry key="stockHolderTop10">
+<![CDATA[
+/*10大股东*/
+SELECT *
+FROM (
+	SELECT
+	  FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS ranking,
+	  distA.INSTITUTIONID AS institutionId,/*公司id*/
+	  distA.FullName AS holderName, /*股东名称*/
+      distA.SHAREHOLDERID as holderId, /*股东id*/
+	  distA.enddate AS endDate, /*截止日期*/
+	  distA.ShareholderType AS holderType, /*持股类型*/
+	  distA.Shares AS holdNum, /*持股数量*/
+	  distA.PercentageHolding AS rate /*比率*/
+	FROM
+	  (
+		SELECT a.INSTITUTIONID, a.FULLNAME, a.ENDDATE, a.SHAREHOLDERTYPE , a.SHARES, a.PERCENTAGEHOLDING, a.SHAREHOLDERID
+		FROM  STK_Holder_Top10 a
+		WHERE a.INSTITUTIONID IN (#orgGroup#)
+		  AND a.ENDDATE >= ?
+		  AND a.RANK < 11
+	  ) AS distA,
+
+	  /*以下的子查询rankData 用于排名数据*/ /*用 SHAREHOLDERID 来代替 fullname 会好很多*/
+	  (
+		SELECT  b.INSTITUTIONID, b.FULLNAME, GROUP_CONCAT(b.ENDDATE ORDER BY b.ENDDATE DESC) AS SALLIST
+		FROM STK_Holder_Top10 AS b
+		WHERE b.INSTITUTIONID IN (#orgGroup#)
+		  AND b.ENDDATE >= ?
+		  AND b.RANK < 11
+		GROUP BY b.INSTITUTIONID, b.FULLNAME
+	  ) AS rankData
+	WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID AND distA.FULLNAME = rankData.FULLNAME
+) ttt
+WHERE ranking BETWEEN 1 AND 2 /*取两期*/
+    and holdNum is not null
+ORDER BY institutionId, holderName, ranking
+]]>
+    </entry>
+
+    <!--机构股东-->
+    <entry key="orgStockHolder">
+<![CDATA[
+/*机构股东*/
+SELECT *
+FROM (
+	SELECT
+	  FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS ranking,
+	  distA.INSTITUTIONID AS institutionId,/*公司id*/
+	  distA.FullName AS holderName, /*股东名称*/
+	  distA.SHAREHOLDERID as holderId, /*股东id*/
+	  distA.enddate AS endDate, /*截止日期*/
+	  distA.ShareholderType AS holderType, /*持股类型*/
+	  distA.Shares AS holdNum, /*持股数量*/
+	  distA.PercentageHolding AS rate /*比率*/
+	FROM
+	  (
+		SELECT a.INSTITUTIONID, a.FULLNAME, a.ENDDATE, a.SHAREHOLDERTYPE , a.SHARES, a.PERCENTAGEHOLDING, a.SHAREHOLDERID
+		FROM  STK_Holder_Top10 a
+		WHERE a.INSTITUTIONID IN (#orgGroup#)
+		  AND a.ENDDATE >= ?
+		  AND a.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+
+	  ) AS distA,
+
+	  /*以下的子查询rankData 用于排名数据*/ /*用 SHAREHOLDERID 来代替 fullname 会好很多*/
+	  (
+		SELECT  b.INSTITUTIONID, b.FULLNAME, GROUP_CONCAT(b.ENDDATE ORDER BY b.ENDDATE DESC) AS SALLIST
+		FROM STK_Holder_Top10 AS b
+		WHERE b.INSTITUTIONID IN (#orgGroup#)
+		  AND b.ENDDATE >= ?
+		  AND b.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+		GROUP BY b.INSTITUTIONID, b.FULLNAME
+	  ) AS rankData
+	WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID AND distA.FULLNAME = rankData.FULLNAME
+) ttt
+WHERE ranking BETWEEN 1 AND 2 /*取两期*/
+    and holdNum is not null
+ORDER BY institutionId, holderName, ranking
+]]>
+    </entry>
+
+    <!--10大流通股东-->
+    <entry key="stockFlowHolderTop10">
+<![CDATA[
+/*10大流通股东*/
+SELECT *
+FROM (
+	SELECT
+	  FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS ranking,
+	  distA.INSTITUTIONID AS institutionId,/*公司id*/
+	  distA.FullName AS holderName, /*股东名称*/
+	  distA.SHAREHOLDERID as holderId, /*股东id*/
+	  distA.enddate AS endDate, /*截止日期*/
+	  distA.ShareholderType AS holderType, /*持股类型*/
+	  distA.Shares AS holdNum, /*持股数量*/
+	  distA.SHAREHOLDINGRATIO AS rate /*比率*/
+	FROM
+	  (
+		SELECT a.INSTITUTIONID, a.FULLNAME, a.ENDDATE, a.SHAREHOLDERTYPE , a.SHARES, a.SHAREHOLDINGRATIO, a.SHAREHOLDERID
+		FROM  STK_Holder_Top10Floating a
+		WHERE a.INSTITUTIONID IN (#orgGroup#)
+		  AND a.ENDDATE > ?
+		  AND a.RANK < 11
+	  ) AS distA,
+
+	  /*以下的子查询rankData 用于排名数据*/ /*用 SHAREHOLDERID 来代替 fullname 会好很多*/
+	  (
+		SELECT  b.INSTITUTIONID, b.FULLNAME, GROUP_CONCAT(b.ENDDATE ORDER BY b.ENDDATE DESC) AS SALLIST
+		FROM STK_Holder_Top10Floating AS b
+		WHERE b.INSTITUTIONID IN (#orgGroup#)
+		  AND b.ENDDATE > ?
+		  AND b.RANK < 11
+		GROUP BY b.INSTITUTIONID, b.FULLNAME
+	  ) AS rankData
+	WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID AND distA.FULLNAME = rankData.FULLNAME
+) ttt
+WHERE ranking BETWEEN 1 AND 2
+    and holdNum is not null
+ORDER BY institutionId, holderName, ranking
+]]>
+    </entry>
+
+    <!--机构流通股东-->
+    <entry key="orgStockFlowHolder">
+<![CDATA[
+/*机构流通股东*/
+SELECT *
+FROM (
+	SELECT
+	  FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS ranking,
+	  distA.INSTITUTIONID AS institutionId,/*公司id*/
+	  distA.FullName AS holderName, /*股东名称*/
+	  distA.SHAREHOLDERID as holderId, /*股东id*/
+	  distA.enddate AS endDate, /*截止日期*/
+	  distA.ShareholderType AS holderType, /*持股类型*/
+	  distA.Shares AS holdNum, /*持股数量*/
+	  distA.SHAREHOLDINGRATIO AS rate /*比率*/
+	FROM
+	  (
+		SELECT a.INSTITUTIONID, a.FULLNAME, a.ENDDATE, a.SHAREHOLDERTYPE , a.SHARES, a.SHAREHOLDINGRATIO, a.SHAREHOLDERID
+		FROM  STK_Holder_Top10Floating a
+		WHERE a.INSTITUTIONID IN (#orgGroup#)
+		  AND a.ENDDATE > ?
+          AND a.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+	  ) AS distA,
+
+	  /*以下的子查询rankData 用于排名数据*/ /*用 SHAREHOLDERID 来代替 fullname 会好很多*/
+	  (
+		SELECT  b.INSTITUTIONID, b.FULLNAME, GROUP_CONCAT(b.ENDDATE ORDER BY b.ENDDATE DESC) AS SALLIST
+		FROM STK_Holder_Top10Floating AS b
+		WHERE b.INSTITUTIONID IN (#orgGroup#)
+		  AND b.ENDDATE > ?
+		  AND b.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+		GROUP BY b.INSTITUTIONID, b.FULLNAME
+	  ) AS rankData
+	WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID AND distA.FULLNAME = rankData.FULLNAME
+) ttt
+WHERE ranking BETWEEN 1 AND 2
+    and holdNum is not null
+ORDER BY institutionId, holderName, ranking
+]]>
+    </entry>
+
+    <!--机构类型合计持股-->
+    <entry key="stockTypeSumHold">
+        <![CDATA[
+/*机构类型合计持股*/
+SELECT * FROM (
+
+	SELECT
+		a.INSTITUTIONID AS institutionId,
+		a.ENDDATE AS endDate,
+		a.SHAREHOLDERTYPEID AS typeId, /*类型id*/
+		SUM(a.PERCENTAGEHOLDING) AS sumRatio, /*合计比例*/
+		COUNT(a.PERCENTAGEHOLDING) AS orgCount /*机构个数*/
+	FROM STK_Holder_Top10 a
+	WHERE a.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+		AND a.ENDDATE >= ?
+		AND a.INSTITUTIONID in (#orgGroup#)
+	GROUP BY a.INSTITUTIONID, a.ENDDATE, a.SHAREHOLDERTYPEID
+
+	UNION ALL
+
+	SELECT
+		a.INSTITUTIONID AS institutionId,
+		a.ENDDATE AS endDate,
+		a.SHAREHOLDERTYPEID AS typeId, /*类型id*/
+		SUM(a.ShareholdingRatio) AS sumRatio, /*合计比例*/
+		COUNT(a.ShareholdingRatio) AS orgCount /*机构个数*/
+	FROM STK_Holder_Top10Floating a
+	WHERE a.SHAREHOLDERTYPEID IN (#typeIdGroup#)
+		AND a.ENDDATE >= ?
+		AND a.INSTITUTIONID in (#orgGroup#)
+	GROUP BY a.INSTITUTIONID, a.ENDDATE, a.SHAREHOLDERTYPEID
+
+) AS dist
+
+ORDER BY institutionId, endDate DESC
+                ]]>
+    </entry>
+
+    <!--股本结构-->
+    <entry key="stockStruct2">
+<![CDATA[
+    SELECT
+      a.`INSTITUTIONID` AS institutionId,
+      a.`CHANGEDATE` AS changeDate,/*变动日期*/
+      a.`NONTRADABLESHARE` AS nonTradableShare,/*未流通股份数*/
+      a.`LOCKSHARESTOTAL` AS lockSharesTotal,/*流通受限股份数*/
+      a.`TRADESHARESTOTAL` AS tradeSharesTotal,/*已流通股份合计*/
+      a.`TOTAL` AS total,/*总股本*/
+      a.`TRADABLESHARESA` AS tradableSharesA,/*已上市流通A股数*/
+      a.`TRADABLESHARESB` AS tradableSharesB,/*已上市流通B股数*/
+      a.`TRADABLESHARESH` AS tradableSharesH,/*已上市流通H股数*/
+      a.`OTHERTRADABLESHARES` AS otherTradableShares/*其他已流通股份*/
+    FROM
+      STK_shares_Structure a
+      INNER JOIN
+        (SELECT
+          MAX(b.`CHANGEDATE`) AS maxdate,
+          b.`INSTITUTIONID`
+        FROM
+          stk_shares_structure b
+        GROUP BY b.`INSTITUTIONID`) f
+        ON a.`INSTITUTIONID` = f.INSTITUTIONID
+        AND a.`CHANGEDATE` = f.maxdate
+]]>
+    </entry>
+
+    <!--限售解禁-->
+    <entry key="limitAndLift">
+<![CDATA[
+/*限售解禁*/
+SELECT * FROM (
+	SELECT
+	  FIND_IN_SET(a.CHANGEDATE, SALLIST) AS ranking,
+	  a.`INSTITUTIONID` AS institutionId,
+	  DATE_FORMAT(a.`CHANGEDATE`, '%Y-%m-%d') AS changeDate,/*变动日期*/
+	  a.`TRADESHARESTOTAL` AS tradeSharesTotal, /*已流通股份合计*/
+	  a.`TOTAL` AS total, /*总股本*/
+	  a.`CHANGEREASON` AS changeReason, /*变动原因*/
+	  a.CHANGEREASONID AS changeReasonId /*变动原因id*/
+	FROM
+	  (
+		SELECT INSTITUTIONID, CHANGEDATE, TRADESHARESTOTAL, TOTAL, CHANGEREASON, CHANGEREASONID
+		FROM STK_shares_Structure
+		WHERE INSTITUTIONID IN (#orgGroup#)
+		AND changeReasonId IN ('P0720','P0751','P0753','P0754','P0756','P0757','P0758','P0762','P0764')
+	  ) AS a,
+	  (
+		SELECT
+			INSTITUTIONID,
+			GROUP_CONCAT(CHANGEDATE ORDER BY CHANGEDATE DESC) AS SALLIST
+		FROM STK_shares_Structure
+		WHERE INSTITUTIONID IN (#orgGroup#)
+		AND changeReasonId IN ('P0720','P0751','P0753','P0754','P0756','P0757','P0758','P0762','P0764')
+		GROUP BY INSTITUTIONID
+	  ) AS b
+	WHERE a.INSTITUTIONID = b.INSTITUTIONID
+) ttt
+WHERE ranking BETWEEN 1 AND 41
+ORDER BY institutionId, ranking
+]]>
+    </entry>
+
+</properties>

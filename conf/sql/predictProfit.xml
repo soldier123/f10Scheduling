@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>盈利预测sql</comment>
+
+    <!--评级变动-->
+    <entry key="ratingChangeSql">
+<![CDATA[
+/*评级变动*/
+SELECT
+	a.SecurityID AS secId,
+	a.ReportID AS reportId,
+	a.InstitutionName AS orgName, /*研究机构*/
+	DATE_FORMAT(a.ReportDate, '%Y-%m-%d') AS reportDate,/*研报日期*/
+	a.RatingChange AS ratingChange,/*评级变动*/
+	a.StandardRating AS rating /*评级*/
+FROM STK_AF_RatingChange a INNER JOIN
+	(
+		SELECT SecurityID, MAX(ReportDate) AS ReportDate
+		FROM STK_AF_RatingChange
+		WHERE SecurityID IN (#secIdGroup#)
+			AND `REPORTDATE` > DATE_ADD(CURDATE(), INTERVAL -4 YEAR) /*4年应该要够了*/
+		GROUP BY SecurityID
+	) b
+
+	ON a.SecurityID = b.SecurityID AND a.ReportDate = b.ReportDate
+
+WHERE a.`SECURITYID` IN (#secIdGroup#)
+	AND a.`REPORTDATE` > DATE_ADD(CURDATE(), INTERVAL -4 YEAR)
+]]>
+    </entry>
+
+    <!--预测目标价-->
+    <entry key="forecastPriceSql">
+<![CDATA[
+/*预测目标价*/
+SELECT secId, pdate, priceterm, institutionname, AVG(price) AS price
+
+FROM  (
+
+SELECT
+	a.`SECURITYID` AS secId,
+	a.`REPORTDATE` AS pdate,/*价格日期*/
+    a.priceterm,
+    a.institutionname,
+	(IFNULL(a.`OBJECTPRICEMAX`, 0) + IFNULL(a.`OBJECTPRICEMIN`, 0))/2 AS price
+FROM
+    STK_AF_TargetValue a
+WHERE
+    a.`REPORTDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 MONTH) /*时间为一个月前*/
+	AND a.`SECURITYID` IN (#secIdGroup#)
+
+) AS tt
+
+GROUP BY secId, pdate, priceterm, institutionname
+ORDER BY secId, pdate
+]]>
+    </entry>
+
+    <!--近一个月的价格-->
+    <entry key="price1MonthSql">
+<![CDATA[
+/*近一个月的价格*/
+SELECT
+	a.`SECURITYID` AS secId,
+	a.`TRADINGDATE` AS pdate,
+	a.`CLOSEPRICE` AS price
+FROM stk_mkt_quotation a
+WHERE
+	a.`SECURITYID` IN (#secIdGroup#)
+	AND a.`TRADINGDATE` > DATE_ADD(CURDATE(), INTERVAL -1 MONTH)
+ORDER BY a.`SECURITYID`, a.`TRADINGDATE`
+]]>
+    </entry>
+
+    <!--近5年的 年报 eps 值-->
+    <entry key="last5YearEpsSql">
+<![CDATA[
+SELECT institutionId, YEAR(endDate) as yearVal, eps as price
+FROM
+(
+	SELECT
+		a.institutionId, a.endDate, a.eps, FIND_IN_SET(a.ENDDATE, rankData.SALLIST) AS rank
+	FROM
+		(
+			SELECT
+				INSTITUTIONID AS institutionId,
+				ENDDATE AS endDate,
+				EPS AS eps
+			FROM STK_FIN_PerShare
+			WHERE
+				INSTITUTIONID IN (#orgIdList#)
+				AND STATETYPECODE = 'A'
+				AND MONTH(`ENDDATE`) = 12
+				AND DAY(`ENDDATE`)=31
+		) AS a,
+		(
+			SELECT
+				INSTITUTIONID AS institutionId,
+				GROUP_CONCAT( `ENDDATE` ORDER BY `ENDDATE` DESC ) AS SALLIST
+			FROM STK_FIN_PerShare
+			WHERE
+				INSTITUTIONID IN (#orgIdList#)
+				AND STATETYPECODE = 'A'
+				AND MONTH(`ENDDATE`) = 12
+				AND DAY(`ENDDATE`)=31
+			GROUP BY INSTITUTIONID
+		) AS rankData
+	WHERE
+		a.institutionId = rankData.institutionId
+) AS ttt
+WHERE rank BETWEEN 1 AND 5
+ORDER BY institutionId, endDate
+]]>
+    </entry>
+
+    <!--近5年的 年报 净利润-->
+    <entry key="last5YearNetProfitSql">
+        <![CDATA[
+/*近5年的 年报 净利润*/
+SELECT institutionId, YEAR(endDate) AS yearVal, B002 AS price
+FROM
+(
+	SELECT
+		a.institutionId, a.endDate, B002, FIND_IN_SET(a.ENDDATE, rankData.SALLIST) AS rank
+	FROM
+		(
+			SELECT
+				INSTITUTIONID AS institutionId,
+				ENDDATE AS endDate,
+				B002
+			FROM STK_FIN_Income
+			WHERE
+				INSTITUTIONID IN (#orgIdList#)
+				AND STATETYPECODE = 'A'
+				AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+				AND DATE_FORMAT(enddate, '%m-%d') = '12-31'
+		) AS a,
+		(
+			SELECT
+				INSTITUTIONID AS institutionId,
+				GROUP_CONCAT( `ENDDATE` ORDER BY `ENDDATE` DESC ) AS SALLIST
+			FROM STK_FIN_Income
+			WHERE
+				INSTITUTIONID IN (#orgIdList#)
+				AND STATETYPECODE = 'A'
+				AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+				AND DATE_FORMAT(enddate, '%m-%d') = '12-31'
+			GROUP BY INSTITUTIONID
+		) AS rankData
+	WHERE
+		a.institutionId = rankData.institutionId
+) AS ttt
+WHERE rank BETWEEN 1 AND 5
+ORDER BY institutionId, endDate
+                ]]>
+    </entry>
+
+    <!--预测三年的eps数据-->
+    <entry key="forecast3YearEpsSql">
+<![CDATA[
+/*预测三年的eps数据*/
+SELECT SecurityID AS secId, AVG(price) AS price, fyear AS yearVal
+FROM
+
+(
+	SELECT
+		SYMBOL,
+		SecurityID,
+		YEAR(ForecastYear) AS fyear,
+		TargetValue AS price
+	FROM
+		STK_AF_Forecast
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND ForecastYear > ?
+		AND ForecastTargetID = 'Z9701' /*每股收益*/
+		AND REPORTDATE >= DATE_ADD(CURDATE(), INTERVAL -3 YEAR)
+) a,
+
+(
+	/*以下查询取出每个公司的最新年报是哪一年*/
+	SELECT
+		SYMBOL,
+		YEAR(MAX(ENDDATE)) AS maxYear
+	FROM STK_FIN_PerShare
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND STATETYPECODE = 'A'
+		AND MONTH(`ENDDATE`) = 12
+		AND DAY(`ENDDATE`)=31
+	GROUP BY SYMBOL
+) b
+
+WHERE a.SYMBOL = b.SYMBOL
+	AND a.fyear BETWEEN (b.maxYear + 1) AND (b.maxYear + 3)
+
+GROUP BY SecurityID, fyear
+]]>
+    </entry>
+
+    <!--预测3年的 净利润 数据-->
+    <entry key="forecast3YearNetProfitSql">
+<![CDATA[
+/*预测3年的 净利润 数据*/
+SELECT SecurityID AS secId, AVG(price) AS price, fyear AS yearVal
+FROM
+
+(
+	SELECT
+		SYMBOL,
+		SecurityID,
+		YEAR(ForecastYear) AS fyear,
+		TargetValue AS price
+	FROM
+		STK_AF_Forecast
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND ForecastYear > ?
+		AND ForecastTargetID = 'Z9704' /*净利润*/
+		AND REPORTDATE >= DATE_ADD(CURDATE(), INTERVAL -3 YEAR)
+) a,
+
+(
+	/*以下查询取出每个公司的最新年报是哪一年*/
+	SELECT
+		SYMBOL,
+		YEAR(MAX(ENDDATE)) AS maxYear
+	FROM STK_FIN_Income
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND STATETYPECODE = 'A'
+		AND MONTH(`ENDDATE`) = 12
+		AND DAY(`ENDDATE`)=31
+	GROUP BY SYMBOL
+) b
+
+WHERE a.SYMBOL = b.SYMBOL
+	AND a.fyear BETWEEN (b.maxYear + 1) AND (b.maxYear + 3)
+
+GROUP BY SecurityID, fyear
+
+ORDER BY SecurityID, fyear
+]]>
+    </entry>
+
+
+    <!--预测三年的 eps 明细数据-->
+    <entry key="f3yearEpsDetailSql">
+<![CDATA[
+/*预测三年的 eps 明细数据*/
+SELECT SecurityID AS secId,
+	REPORTID AS reportId, /*研报id*/
+	REPORTDATE AS reportDate, /*研报时间*/
+	InstitutionName AS orgName, /*机构名称*/
+	fyear AS forecastYear, /*预测年度*/
+	fprice AS price, /*价格*/
+	ANALYST AS analyst, /*研究员*/
+	StandardRating AS rating /*标准化评级*/
+FROM
+
+(
+	SELECT
+		a1.SYMBOL,
+		a1.SecurityID,
+		YEAR(a1.ForecastYear) AS fyear,
+		a1.TargetValue AS fprice,
+		a1.`REPORTDATE`,
+		a1.`REPORTID`,
+		b1.`ANALYST`,
+		b1.StandardRating,
+		b1.`INSTITUTIONNAME`
+	FROM
+		STK_AF_Forecast a1 INNER JOIN STK_AF_RatingChange b1 ON a1.`REPORTID` = b1.`REPORTID`
+	WHERE
+		a1.SYMBOL IN (#scodeGroup#)
+		AND a1.ForecastYear > ?
+		AND a1.ForecastTargetID = 'Z9701' /*每股收益*/
+		AND a1.`REPORTDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 MONTH)
+		AND b1.`REPORTDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 MONTH)
+) a,
+
+(
+	/*以下查询取出每个公司的最新年报是哪一年*/
+	SELECT
+		SYMBOL,
+		YEAR(MAX(ENDDATE)) AS maxYear
+	FROM STK_FIN_PerShare
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND STATETYPECODE = 'A'
+		AND MONTH(`ENDDATE`) = 12
+		AND DAY(`ENDDATE`)=31
+	GROUP BY SYMBOL
+) b
+
+WHERE a.SYMBOL = b.SYMBOL
+	AND a.fyear BETWEEN (b.maxYear + 1) AND (b.maxYear + 3)
+
+ORDER BY SecurityID, REPORTID, fyear
+]]>
+    </entry>
+
+
+    <!--预测三年的 净利润 明细数据-->
+    <entry key="f3yearNetProfitDetailSql">
+<![CDATA[
+/*预测三年的 净利润 明细数据*/
+SELECT SecurityID AS secId,
+	REPORTID AS reportId, /*研报id*/
+	REPORTDATE AS reportDate, /*研报时间*/
+	InstitutionName AS orgName, /*机构名称*/
+	fyear AS forecastYear, /*预测年度*/
+	fprice AS price, /*价格*/
+	ANALYST AS analyst, /*研究员*/
+	StandardRating AS rating /*标准化评级*/
+FROM
+
+(
+	SELECT
+		a1.SYMBOL,
+		a1.SecurityID,
+		YEAR(a1.ForecastYear) AS fyear,
+		a1.TargetValue AS fprice,
+		a1.`REPORTDATE`,
+		a1.`REPORTID`,
+		b1.`ANALYST`,
+		b1.StandardRating,
+		b1.`INSTITUTIONNAME`
+	FROM
+		STK_AF_Forecast a1 INNER JOIN STK_AF_RatingChange b1 ON a1.`REPORTID` = b1.`REPORTID`
+	WHERE
+		a1.SYMBOL IN (#scodeGroup#)
+		AND a1.ForecastYear > ?
+		AND a1.ForecastTargetID = 'Z9704' /*净利润*/
+		AND a1.`REPORTDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 MONTH)
+		AND b1.`REPORTDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 MONTH)
+) a,
+
+(
+	/*以下查询取出每个公司的最新年报是哪一年*/
+	SELECT
+		SYMBOL,
+		YEAR(MAX(ENDDATE)) AS maxYear
+	FROM STK_FIN_Income
+	WHERE
+		SYMBOL IN (#scodeGroup#)
+		AND STATETYPECODE = 'A'
+		AND MONTH(`ENDDATE`) = 12
+		AND DAY(`ENDDATE`)=31
+	GROUP BY SYMBOL
+) b
+
+WHERE a.SYMBOL = b.SYMBOL
+	AND a.fyear BETWEEN (b.maxYear + 1) AND (b.maxYear + 3)
+
+ORDER BY SecurityID, REPORTID, fyear
+]]>
+    </entry>
+
+</properties>

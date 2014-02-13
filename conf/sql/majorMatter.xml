@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>重大事项sql</comment>
+
+    <!--对外担保-->
+    <entry key="guarantee">
+        <![CDATA[
+SELECT GUARANTEEID,
+	institutionId,
+	DATE_FORMAT(declareDate, '%Y-%m-%d') AS declareDate,
+	DATE_FORMAT(sdate, '%Y-%m-%d') AS sdate,
+	DATE_FORMAT(edate, '%Y-%m-%d') AS edate,
+	amount,
+	method,
+	guarantee,
+	GROUP_CONCAT(GUARANTOR) AS GUARANTOR
+FROM (
+
+	SELECT
+		a.GUARANTEEID,
+		a.INSTITUTIONID AS institutionId,
+		a.DECLAREDATE AS declareDate,/*公告日期*/
+		a.STARTDATE AS sdate,/*担保起始日*/
+		a.ENDDATE AS edate,/*担保终止日*/
+		a.GUARANTEEAMOUNT AS amount,/*担保金额*/
+		a.GUARANTEETYPE AS method,/*担保方式*/
+		a.GuaranteeName AS guarantee, /*被担保人*/
+		b.FULLNAME AS guarantor /*担保方*/
+	FROM
+		STK_Guarantee_Main a
+		INNER JOIN STK_InstitutionInfo b
+			ON a.INSTITUTIONID = b.INSTITUTIONID
+	WHERE a.INSTITUTIONID IN (#orgGroup#)
+
+	UNION ALL
+
+	SELECT
+		c.GUARANTEEID,
+		c.INSTITUTIONID AS institutionId,
+		c.DECLAREDATE AS declareDate,/*公告日期*/
+		c.STARTDATE AS sdate,/*担保起始日*/
+		c.ENDDATE AS edate,/*担保终止日*/
+		c.GUARANTEEAMOUNT AS amount,/*担保金额*/
+		c.GUARANTEETYPE AS method,/*担保方式*/
+		c.GuaranteeName AS guarantee, /*被担保人*/
+		d.GuarantorName AS guarantor /*担保方*/
+	FROM STK_Guarantee_Main c
+		INNER JOIN STK_Guarantee_Son d
+			ON c.GUARANTEEID = d.GUARANTEEID
+	WHERE c.INSTITUTIONID IN (#orgGroup#)
+
+) ff
+GROUP BY GUARANTEEID
+ORDER BY institutionId, declareDate DESC
+]]>
+    </entry>
+
+    <!--违规处理-->
+    <entry key="violations">
+        <![CDATA[
+/*违规处理*/
+SELECT VIOLATIONID, institutionId, declareDate, violationType, supervisor, disposalDate, GROUP_CONCAT(processObject) AS processObject
+FROM (
+
+	SELECT
+		a.VIOLATIONID,
+		a.INSTITUTIONID AS institutionId,
+		DATE_FORMAT(a.DeclareDate, '%Y-%m-%d') AS declareDate,/*公告日期*/
+		a.ViolationType AS violationType, /*违规类型*/
+		a.Supervisor AS supervisor, /*处理单位*/
+		DATE_FORMAT(a.DisposalDate, '%Y-%m-%d') AS disposalDate, /*处理决定文件日期*/
+		GROUP_CONCAT(ViolatorName) AS processObject /*处理对象*/
+	FROM
+		STK_Violation_Main a
+		LEFT JOIN STK_Violation_Son b
+			ON a.ViolationID = b.VIOLATIONID
+	where a.INSTITUTIONID in (#orgGroup#)
+	GROUP BY a.ViolationID
+
+	UNION ALL
+
+	SELECT
+		c.VIOLATIONID,
+		c.INSTITUTIONID AS institutionId,
+		DATE_FORMAT(c.DeclareDate, '%Y-%m-%d') AS declareDate,/*公告日期*/
+		c.ViolationType AS violationType, /*违规类型*/
+		c.Supervisor AS supervisor, /*处理单位*/
+		DATE_FORMAT(c.DisposalDate, '%Y-%m-%d') AS disposalDate, /*处理决定文件日期*/
+		GROUP_CONCAT(DISTINCT d.FULLNAME) AS processObject /*处理对象*/
+	FROM
+		STK_Violation_Main c
+		INNER JOIN STK_InstitutionInfo  d
+			ON c.INSTITUTIONID = d.INSTITUTIONID
+	WHERE c.ISVIOLATED='Y'
+	    AND c.INSTITUTIONID in (#orgGroup#)
+	GROUP BY c.VIOLATIONID
+
+) ff
+
+GROUP BY VIOLATIONID
+
+ORDER BY institutionId, declareDate DESC
+]]>
+    </entry>
+
+    <!--有大宗交易的证券-->
+    <entry key="blockTradeSecurity">
+<![CDATA[
+/*有大宗交易的证券*/
+SELECT DISTINCT SECURITYID as secId FROM STK_MKT_blockTrade
+]]>
+    </entry>
+
+    <!--大宗交易 -->
+    <entry key="blocktrade">
+<![CDATA[
+SELECT
+    a.SECURITYID AS secId,
+    DATE_FORMAT(a.TRADINGDATE, '%Y-%m-%d') AS tradeDate,/*交易日期*/
+    a.PRICE AS price,/*价格*/
+    a.VOLUME AS volume,/*成交量*/
+    a.AMOUNT AS amout,/*成效额*/
+    a.BUYER AS buyer,/*买方营业部名称*/
+    a.SELLER AS seller/*卖方营业部名称*/
+FROM
+    STK_MKT_blockTrade a
+WHERE a.SECURITYID= ?
+ORDER BY a.TRADINGDATE DESC
+LIMIT 200
+]]>
+    </entry>
+</properties>

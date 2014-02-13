@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>关联个股sql</comment>
+
+    <!--10大股东同股东持股-->
+    <entry key="top10SameShareHolder">
+<![CDATA[
+/*10大股东同股东持股*/
+SELECT
+    DISTINCT
+	a.SYMBOL AS scode,/*股票代码*/
+    a.SHAREHOLDERID AS holderId,/*股东id*/
+    a.Shares AS holdNum /*持股数量*/
+FROM
+    STK_Holder_Top10 a
+WHERE
+    a.INSTITUTIONID <> ?
+    AND a.ENDDATE = ?
+    AND a.SHAREHOLDERID <> 0
+    AND a.SHAREHOLDERID IN (#ids#)
+ORDER BY a.SHAREHOLDERID
+]]>
+    </entry>
+
+    <!--10大流通股东同股东持股-->
+    <entry key="floatSameShareHolder">
+        <![CDATA[
+/*10大流通股东同股东持股*/
+SELECT
+    DISTINCT
+    a.SYMBOL AS scode,/*股票代码*/
+    a.SHAREHOLDERID AS holderId,/*股东id*/
+    a.enddate AS endDate,/*截止日期*/
+    a.ShareholderType AS holderType,/*持股类型*/
+    a.Shares AS holdNum /*持股数量*/
+FROM
+    STK_Holder_Top10Floating a
+WHERE
+    a.INSTITUTIONID <> ?
+    AND a.ENDDATE = ?
+    AND a.SHAREHOLDERID <> 0
+    AND a.SHAREHOLDERID IN (#ids#)
+ORDER BY a.SHAREHOLDERID
+                ]]>
+    </entry>
+
+    <!--同行业(证券会二级行业)各股eps-->
+    <entry key="sameInduEps">
+<![CDATA[
+SELECT
+    DISTINCT
+    c.ENDDATE AS endDate,
+    a.EPS AS eps,
+    a.INSTITUTIONID,
+    a.SYMBOL AS scode
+FROM
+    STK_FIN_PerShare AS a
+    INNER JOIN
+        (SELECT
+            MAX(ENDDATE) AS endDate,
+            INSTITUTIONID
+        FROM
+            STK_FIN_PerShare
+        GROUP BY INSTITUTIONID) AS c
+        ON a.`INSTITUTIONID` = c.INSTITUTIONID
+        AND a.endDate = c.endDate
+    INNER JOIN (
+        SELECT
+            k.*
+        FROM stk_industryclass k
+            INNER JOIN
+            (
+                SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+                FROM stk_industryclass
+                WHERE INDUSTRYCLASSIFICATIONID = 'P0207'
+                GROUP BY INSTITUTIONID
+            ) AS v
+            ON k.`INSTITUTIONID` = v.INSTITUTIONID AND k.CHANGEDATE = v.CHANGEDATE
+        WHERE k.INDUSTRYCLASSIFICATIONID='P0207'
+    ) AS b
+        ON a.INSTITUTIONID = b.INSTITUTIONID
+    INNER JOIN stk_stockinfo d
+    	ON b.INSTITUTIONID = d.INSTITUTIONID
+WHERE a.STATETYPECODE = 'A'
+    AND LEFT(b.INDUSTRYCODE, 3) = ? /*左边3个字符表示二级分类*/
+    AND b.INDUSTRYCLASSIFICATIONID='P0207'
+    and d.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+]]>
+    </entry>
+
+</properties>

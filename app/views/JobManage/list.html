@@ -1,0 +1,18 @@
+#{extends 'main.html'/}
+
+<table>
+    <tr>
+        <td>任务名</td>
+        <td>任务描述</td>
+        <td>操作</td>
+    </tr>
+
+    #{list items:detailList, as:'item'}
+        <tr>
+            <td>${item.className}</td>
+            <td>${item.desc}</td>
+            <td><a target="_blank" href="@{JobManage.execJob(item.className)}">立即执行</a></td>
+        </tr>
+    #{/list}
+
+</table>

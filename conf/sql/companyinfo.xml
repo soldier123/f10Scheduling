@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>公司信息的sql</comment>
+
+    <!--公司信息-->
+    <entry key="institutioninfo">
+<![CDATA[
+/*公司基本信息,来源于公司表*/
+SELECT
+  a.INSTITUTIONID as institutionId, /*公司id*/
+  a.`SHORTNAME` AS fullName,/*名称*/
+  a.REGISTERADDRESS AS regAddress, /*公司地址*/
+  a.ZIPCODE AS zipCode,     /*邮政编码*/
+  a.SECRETARYTEL AS secretaryTel, /*公司电话*/
+  a.SECRETARYFAX AS secretaryFax, /*公司传真*/
+  a.EMAIL AS email, /*电子邮箱*/
+  a.WEBSITE AS webSite, /*公司网址*/
+  a.BUSINESSSCOPE AS businessScope, /*经营范围*/
+  a.MAINBUSINESS AS mainBusiness, /*主营业务*/
+  a.HISTORY AS introduce, /*公司介绍*/
+  a.LEGALREPRESENTATIVE AS lawPerson, /*法人代表*/
+  a.SECRETARY AS secretary, /*联系人(董秘)*/
+  b.`DIVISIONNAME` AS province /*所属地区*/
+FROM
+  stk_institutioninfo a
+  LEFT  JOIN PUB_CHNADMDIVISIONCODE b
+    ON a.`PROVINCECODE` = b.`DIVISIONCODE`
+where a.INSTITUTIONID is not null
+]]>
+    </entry>
+
+    <!--eqIpoInfo 信息-->
+    <entry key="eqIpoInfo">
+<![CDATA[
+/*ipo_info信息*/
+SELECT 
+  a.SECURITYID AS secId,
+  a.STARTDATE AS issueDate, /*发行日期*/
+  a.TAXRATE AS taxRate, /*所得税率*/
+  a.ACTUALISSUESHARES AS issueNumber, /*发行股数*/
+  a.PRICEPUBLIC AS pubPrice, /*发行价*/
+  a.LISTEDDATE AS listDate, /*上市日期*/
+  a.RAISENETFUND AS raiseNetFund, /*募集资金总计*/
+  a.EXPENSE AS issueExpenses, /*发行费用*/
+  a.PARVALUE AS parValue, /*股票面值*/
+  a.ISSUEMODE AS issueMode, /*发行方式*/
+  a.PE4 AS pe4, /*发行市盈率*/
+  a.EPS1 AS eps1, /*发行前每股收益*/
+  a.EPS2 AS eps2, /*发行后每股收益*/
+  a.NAV1 AS nav1, /*发行前每股净资产*/
+  a.NAV2 AS nav2, /*发行后每股净资产*/
+  b.CURRENCYNAME AS currencyCode /*币种*/
+FROM
+  stk_eq_ipo_info a LEFT JOIN PUB_ISOCURRENCYCODE b
+	ON a.CurrencyCode = b.CURRENCYCODE
+WHERE a.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--eqIpoResult信息-->
+    <entry key="eqIpoResult">
+<![CDATA[
+/*eqIpoResult信息*/
+SELECT
+  a.SECURITYID AS secId,
+  a.PRICESCOPE AS priceScope,/*发行询价区间*/
+  a.SUCCESSRATE AS successRate,/*中签率1*/
+  a.LISTEDSHARES AS listedShares, /*首日上市股数*/
+  a.PURCHASESHARES as purchaseHouseholders /*申购股数*/
+FROM
+  stk_eq_ipo_result a
+WHERE a.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--股票股本信息-->
+    <entry key="sharesStructureInfo">
+<![CDATA[
+/*股票股本信息*/
+SELECT
+  distA.institutionId,
+  totalStock, /*总股本*/
+  tradeSharesTotal,/*流通股*/
+  issueTotal /*发行后总股本*/
+FROM
+
+  ( SELECT
+      a.INSTITUTIONID AS institutionId,
+      a.TOTAL AS totalStock, /*总股本*/
+      a.TRADESHARESTOTAL AS tradeSharesTotal,/*流通股*/
+      a.CHANGEDATE AS maxChangeDate
+    FROM
+      STK_shares_Structure AS a INNER JOIN (
+  		SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+  		FROM STK_shares_Structure
+  		GROUP BY INSTITUTIONID
+      ) AS b
+      ON a.`INSTITUTIONID` = b.INSTITUTIONID
+  	AND a.CHANGEDATE = b.CHANGEDATE ) distA,
+
+  (SELECT
+    b.INSTITUTIONID AS institutionId,
+    b.TOTAL AS issueTotal /*发行后总股本*/
+  FROM
+    STK_shares_Structure b
+  WHERE b.CHANGEREASONID = 'P0702'/*变动为新股上市*/) distB
+
+WHERE distA.institutionId = distB.institutionId
+]]>
+    </entry>
+
+    <!--MarketQuotation 市场行情-->
+    <entry key="marketQuotation">
+<![CDATA[
+/*市场行情*/
+SELECT
+  a.SECURITYID AS secId,
+  a.PRECLOSEPRICE AS preClosePrice, /*昨收价*/
+  a.OPENPRICE AS openPrice, /*开盘价*/
+  a.CLOSEPRICE AS closePrice,/*收盘价*/
+  a.HIGHPRICE AS highPrice,/*最高价*/
+  a.LOWPRICE AS lowPrice,/*最低价*/
+  a.VOLUME AS volume, /*成交量*/
+  a.AMOUNT AS amount, /*成效额*/
+  a.AVGPRICE AS avgPrice,/*均价*/
+  a.CHANGE AS schange, /*涨跌*/
+  a.CHANGERATIO AS changeRatio, /*涨跌幅*/
+  a.TOTALSHARE AS totalShare,/*总股本*/
+  a.CIRCULATEDSHARE AS circulatedShare,/*流通股本*/
+  a.TURNOVERRATE1 AS turnoverRate1,/*换手率1*/
+  a.TURNOVERRATE2 AS turnoverRate2,/*换手率2*/
+  a.MARKETVALUE AS marketValue,/*总市值*/
+  a.CIRCULATEDMARKETVALUE AS circulatedMarketValue, /*流通市值*/
+  a.AMPLITUDE AS amplitude /*振幅*/
+FROM
+  stk_mkt_quotationlatest a
+]]>
+    </entry>
+
+    <!--ipo上市首日行情-->
+    <entry key="ipoMaketQuotation">
+<![CDATA[
+SELECT
+	a.`SECURITYID` AS secId,
+	a.`PE` as pe,
+	a.`OPENPRICE` AS openPrice,
+	a.`CLOSEPRICE` AS closePrice,
+	a.`HIGHPRICE` AS highPrice,
+	a.`LOWPRICE` AS lowPrice,
+	a.`VOLUME` AS volume,
+	a.`AMOUNT` AS amount
+
+FROM stk_eq_ipo_marketexhibit a
+]]>
+    </entry>
+
+    <!--承销商, 代理机构-->
+    <entry key="agencyOrg">
+<![CDATA[
+/*承销商, 代理机构*/
+SELECT
+	secID,
+	MAX(IF(AGENTTYPEID='P1301', AGENT, NULL)) AS referrer, /*推荐人*/
+	MAX(IF(AGENTTYPEID='P1305', AGENT, NULL)) AS mainSaleMan, /*主承销商*/
+	MAX(IF(AGENTTYPEID='P1306', AGENT, NULL)) AS secondSaleMan /*副总承销商*/
+
+FROM (
+
+
+	SELECT
+	  INSTITUTIONID, secID, AGENTTYPEID, GROUP_CONCAT(AGENT) AS AGENT /*因为主承销商存在多个的情况*/
+	FROM (
+
+		SELECT
+		   INSTITUTIONID,
+		   a.SECURITYID AS secID,
+		   a.AGENTTYPEID,
+		   a.AGENT
+		FROM
+		  STK_EQ_PUB_Agency a
+		WHERE
+		   SECURITYID IS NOT NULL
+		   AND a.EVENTTYPEID IN ('EQ0101')
+		   AND a.AGENTTYPEID IN ('P1301', 'P1305', 'P1306')
+	) tt
+	GROUP BY secID, AGENTTYPEID
+
+) ttt
+
+GROUP BY INSTITUTIONID
+]]>
+    </entry>
+
+</properties>

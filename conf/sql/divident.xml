@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>分红融资</comment>
+
+    <!--每股 配股 情况-->
+    <entry key="allotmentSec">
+<![CDATA[
+/*每股 配股 情况*/
+SELECT
+	a.SECURITYID AS secId,
+	SUM(a.RaiseFund) AS raiseFundSum, /*配股总和*/
+	COUNT(a.EventID) AS raiseFundCount /*配股次数*/
+FROM
+	STK_EQ_RS_Info a
+WHERE a.SECURITYID IS NOT NULL
+GROUP BY a.SECURITYID
+]]>
+    </entry>
+
+    <!--市场合计 配股 情况-->
+    <entry key="allotmentMarketSum">
+<![CDATA[
+/*市场合计 配股 情况*/
+SELECT
+	SUM(a.RaiseFund) AS raiseFundSum /*配股总和*/
+FROM
+	STK_EQ_RS_Info a
+WHERE a.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--每股 增发 非公开-->
+    <entry key="addIssuing1Sec">
+<![CDATA[
+/*每股 增发 非公开*/
+SELECT
+	b.SECURITYID AS secId,
+	SUM(b.RaiseNetFund) AS raiseFundSum,  /*增发(非公开)总和*/
+	COUNT(b.EventID) AS raiseFundCount /*增发次数*/
+FROM
+	STK_EQ_SEO_Private b
+WHERE b.SECURITYID IS NOT NULL
+GROUP BY b.SECURITYID
+]]>
+    </entry>
+
+    <!--市场合计 增发 非公开-->
+    <entry key="addIssuing1MarketSum">
+<![CDATA[
+/*市场合计 增发 非公开*/
+SELECT
+	SUM(b.RaiseNetFund) AS raiseFundSum  /*增发(非公开)总和*/
+FROM
+	STK_EQ_SEO_Private b
+WHERE b.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--每股 增发 公开-->
+    <entry key="addIssuing2Sec">
+<![CDATA[
+/*每股 增发 公开*/
+SELECT
+	c.SECURITYID AS secId,
+	SUM(c.RaiseNetFund) AS raiseFundSum, /*增发(公开)总和*/
+	COUNT(c.EventID) AS raiseFundCount /*增发(公开)次数*/
+FROM
+	STK_EQ_SEO_PublicInfo c
+WHERE c.SECURITYID IS NOT NULL
+GROUP BY c.SECURITYID
+]]>
+    </entry>
+
+    <!--市场合计 增发 公开-->
+    <entry key="addIssuing2MarketSum">
+<![CDATA[
+/*市场合计 增发 公开*/
+SELECT
+	SUM(c.RaiseNetFund) AS raiseFundSum /*增发(公开)总和*/
+FROM
+	STK_EQ_SEO_PublicInfo c
+WHERE c.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--每股 新股发行-->
+    <entry key="firstIssuingSec">
+<![CDATA[
+/*每股 新股发行*/
+SELECT
+	d.SECURITYID AS secId,
+	SUM(d.RAISENETFUND) AS raiseFundSum /*新股发行总和*/
+FROM STK_EQ_IPO_Info d
+WHERE d.SECURITYID IS NOT NULL
+AND d.RAISENETFUND IS NOT NULL
+GROUP BY d.SECURITYID
+]]>
+    </entry>
+
+    <!--市场合计 新股发行-->
+    <entry key="firstIssuingMarketSum">
+<![CDATA[
+SELECT
+	SUM(d.RAISENETFUND) AS raiseFundSum /*新股发行总和*/
+FROM STK_EQ_IPO_Info d
+WHERE d.SECURITYID IS NOT NULL
+AND d.RAISENETFUND IS NOT NULL
+]]>
+    </entry>
+
+    <!--每股 分红-->
+    <entry key="cashBonusSec">
+<![CDATA[
+SELECT
+	e.SECURITYID AS secId,
+	IF(a.RAISENETFUND IS NULL,0,SUM(e.TotalDividendDistri)) AS raiseFundSum, /*现金分红*/
+	COUNT(e.DivdendYear) AS raiseFundCount /*现金分红次数*/
+FROM STK_Dividend e
+INNER JOIN
+	STK_EQ_IPO_Info a
+ON e.SECURITYID = a.SECURITYID
+WHERE UPPER(e.ISDIVIDEND) ='Y'
+	AND e.SECURITYID IS NOT NULL
+GROUP BY e.SECURITYID
+]]>
+    </entry>
+
+    <!--市场合计 分红-->
+    <entry key="cashBonusMarketSum">
+<![CDATA[
+SELECT
+	SUM(e.TotalDividendDistri) AS raiseFundSum /*现金分红*/
+FROM STK_Dividend e
+WHERE UPPER(e.ISDIVIDEND) ='Y'
+	AND e.SECURITYID IS NOT NULL
+]]>
+    </entry>
+
+    <!--每股 转送股次数-->
+    <entry key="transfershares">
+<![CDATA[
+/*转送股次数*/
+SELECT
+  f.SECURITYID AS secId,
+  COUNT(1) AS sendCount /*送股次数*/
+FROM
+  STK_Dividend f
+WHERE f.BonusRatio > 0
+  OR f.ConversionRatio > 0
+  AND f.Schedule = '实施方案'
+GROUP BY f.SECURITYID
+]]>
+    </entry>
+
+    <!--分红明细-->
+    <entry key="cashBonusDetail">
+<![CDATA[
+/*分红明细*/
+SELECT
+  SECURITYID as secId,
+  DeclareDate AS declareDate, /*公告日期*/
+  DividentBT / 10 AS cashBonus /*分红*/,
+  BonusRatio / 10 AS send, /*送股*/
+  ConversionRatio / 10 AS turn, /*转股*/
+  RecordDate AS recordDate, /*登记日*/
+  TotalDividendDistri AS dividendDistri, /*派现额度*/
+  ExDividendDate AS  exDividendDate/*除权日*/
+FROM
+  STK_Dividend
+WHERE
+  UPPER(ISDIVIDEND) ='Y'
+  and SECURITYID in (#secIdGroup#)
+  ORDER BY declareDate desc
+]]>
+    </entry>
+
+    <!--增发明细-->
+    <entry key="addIssuingDetail">
+        <![CDATA[
+SELECT * FROM (
+
+SELECT
+	a.`SECURITYID` AS secId,
+	a.DeclareDate AS declareDate,/*公告日*/
+	a.Object AS issueObject,/*增发对象*/
+	'非公开发行'  AS issueMode, /*发行方式*/
+	a.Price AS price,/*价格*/
+	a.IssueShares AS issueShares,/*实际发行数量*/
+	a.RaiseNetFund AS raiseNetFund,/*实际募集净额*/
+	a.LISTEDDATE AS listedDate,/*增发上市日*/
+	b.TOTAL AS totNumShares /*增发后总股本*/
+FROM
+	STK_EQ_SEO_Private a
+	LEFT JOIN STK_shares_Structure b
+		ON a.`REGISTERDATE` = b.`CHANGEDATE`
+		AND a.`INSTITUTIONID` = b.`INSTITUTIONID`
+WHERE a.`SECURITYID` IN (#secIdGroup#)
+
+UNION ALL
+
+SELECT
+  c.SECURITYID AS secId,
+  c.DeclareDate AS declareDate,
+  '机构投资者、公司股权登记日登记在册的A股流通股股东及其他社会公众' AS issueObject,
+  c.IssueMode AS issueMode,
+  c.Price AS price,
+  c.IssueShares AS issueShares,
+  c.RaiseNetFund AS raiseNetFund,
+  c.ListedDate AS listedDate,
+  d.TOTAL AS totNumShares
+FROM
+	STK_EQ_SEO_PublicInfo c
+	LEFT JOIN STK_shares_Structure d
+		ON c.`LISTEDDATE` = d.CHANGEDATE
+		AND c.`INSTITUTIONID` = d.`INSTITUTIONID`
+WHERE c.`SECURITYID` IN (#secIdGroup#)
+
+) ttt
+ORDER BY secId, declareDate DESC
+                ]]>
+    </entry>
+
+    <!--配股明细-->
+    <entry key="allotmentDetail">
+<![CDATA[
+SELECT
+    a.`SECURITYID` AS secId,
+    a.DeclareDate AS declareDate, /*配股说明书公告日期*/
+	PlacingRatio AS placingRatio,/*配股比例*/
+    Price AS price,	/*配售价格*/
+	RegisterDate AS registerDate,/*股权登记日*/
+	ExRightDate AS exRightDate,/*除权基准日*/
+	ListedDate AS listedDate, /*配股上市流通日*/
+	RaiseFund AS raiseFund,	/*实际募集资金净额*/
+	b.AGENT AS saleMan /*承销商*/
+FROM
+    STK_EQ_RS_Info a LEFT JOIN
+    (
+		SELECT
+		   b.SECURITYID,
+		   b.AGENT,
+		   b.`ISSUESTARTDATE`
+		FROM
+		  STK_EQ_PUB_Agency b
+		WHERE
+		   SECURITYID IS NOT NULL
+		   AND b.`EVENTTYPEID`  = 'EQ0201'
+		   AND b.AGENTTYPEID  = 'P1305'
+    ) b
+    ON a.`SECURITYID` = b.SECURITYID
+		AND a.`DECLAREDATE` = b.ISSUESTARTDATE
+WHERE a.SECURITYID IN (#secIdGroup#)
+ORDER BY a.SECURITYID, DeclareDate DESC
+]]>
+    </entry>
+
+</properties>

@@ -1,0 +1,159 @@
+#{extends 'main.html'/}
+#{set title:'监控队列信息' /}
+
+<div>
+    <div>mysql数据变化队列
+        <p><input id="mysqlChangeRedisInfoBtn" type="button" value="获取">
+        <input id="mysqlChangeRedisCleanBtn" type="button" value="清空计数">
+        <input id="mysqlChangeRedisCleanQueue" type="button" value="清空队列"></p>
+
+    </div>
+    <div id="mysqlChangeRedisInfo"></div>
+</div>
+
+<hr/>
+
+<div>
+    <div>job队列
+        <p><input id="jobRedisInfoBtn" type="button" value="获取"></p>
+        <p><input type="button" value="清空job计数" id="cleanJobCountBtn"></p>
+    </div>
+    <div id="jobRedisInfo"></div>
+</div>
+
+<hr/>
+
+<div>
+    <p>
+        <select name="queueName" id="cleanQueueName">
+            <option value="job_no_relevance_queue">相关表还没有数据的队列</option>
+            <option value="job_error_queue">任务处理错误的队列</option>
+            <option value="job_exec_exception_queue">任务执行时发生异常的队列</option>
+            <option value="backup_change_msg_queue">备份记录变化队列</option>
+        </select>
+        <input type="button" value="清空job" id="cleanJobQueueBtn">
+    </p>
+</div>
+
+<hr/>
+
+<div>
+    <div>
+        <p> 队列类型 <select name="queueType" id="queueType">
+            <option value="change_msg_queue">mysql记录变化队列</option>
+            <option value="job_no_relevance_queue">相关表还没有数据的队列</option>
+            <option value="job_error_queue">任务处理错误的队列</option>
+            <option value="job_exec_exception_queue">任务执行时发生异常的队列</option>
+            <option value="backup_change_msg_queue">备份记录变化队列</option>
+        </select> </p>
+        <p>开始位置 <input type="text" name="start" id="start"> </p>
+        <p>结束位置 <input type="text" name="end" id="end"> </p>
+        <p><input type="button" value="查询" id="queueRangeBtn"> </p>
+    </div>
+
+    <div id="queueRangeResult"></div>
+
+</div>
+
+<hr/>
+
+<div>
+    <div>
+        消息备份队列信息
+        <p>
+            <input id="backupQueueInfoBtn" type="button" value="获取">
+        </p>
+    </div>
+    <div id="backupQueueInfo"></div>
+</div>
+
+<hr/>
+
+<div>
+    <p>把相关队列内容转入主队列</p>
+    <p>
+        队列类型:
+        <select name="queueType" id="queueTypeTrans">
+            <option value="job_no_relevance_queue">相关表还没有数据的队列</option>
+            <option value="job_exec_exception_queue">任务执行时发生异常的队列</option>
+            <option value="job_error_queue">任务处理错误的队列</option>
+        </select>
+    </p>
+    <p>长度 <input type="text" name="queueLen" id="queueLen"> </p>
+    <p><input type="button" value="转入" id="queueTypeTransBtn"></p>
+</div>
+
+#{set 'moreScripts'}
+<script type="text/javascript">
+    $(function(){
+        $("#mysqlChangeRedisCleanBtn").click(function(){
+            var action = #{jsAction @Application.cleanMysqlChangeCount() /}
+            $.post(action(), function(data){alert(data)});
+        });
+
+        $("#mysqlChangeRedisCleanQueue").click(function(){
+            if (confirm("真的要清空队列吗?想要了?")) {
+                var action = #{jsAction @Application.cleanMysqlChangeQueue() /}
+                $.post(action(), function (data) {
+                    alert(data)
+                });
+            }
+        });
+
+        $("#cleanJobCountBtn").click(function(){
+            var action = #{jsAction @Application.cleanJobCount() /}
+            $.post(action(), function(data){alert(data)});
+        });
+
+        $("#cleanJobQueueBtn").click(function(){
+            if(confirm("真的要清空队列吗?")){
+                var action = #{jsAction @Application.cleanJobQueue(':queueName') /}
+                var param = {
+                    'queueName':$("#cleanQueueName").val()
+                };
+                $.post(action(param), function(data){
+                    alert(data);
+                });
+            }
+        });
+
+        $("#mysqlChangeRedisInfoBtn").click(function(){
+            var action = #{jsAction @Application.mysqlChangeRedisInfo() /}
+            $("#mysqlChangeRedisInfo").load(action());
+        });
+
+        $("#jobRedisInfoBtn").click(function(){
+            var action = #{jsAction @Application.jobRedisInfo() /}
+            $("#jobRedisInfo").load(action());
+        });
+
+        $("#queueRangeBtn").click(function(){
+            var action = #{jsAction @Application.queueRangeInfo(':queueType', ':start', ':end') /}
+            var param = {
+                'queueType':$("#queueType").val(),
+                'start':$("#start").val(),
+                'end':$("#end").val()
+            };
+            $("#queueRangeResult").load(action(param));
+        });
+
+        $("#backupQueueInfoBtn").click(function(){
+            var action = #{jsAction @Application.backupQueueInfo() /}
+            $("#backupQueueInfo").load(action());
+        });
+
+        $("#queueTypeTransBtn").click(function(){
+           var action = #{jsAction @Application.queueTrans(':queueType', ':queueLen') /}
+            var param = {
+                'queueType' : $("#queueTypeTrans").val(),
+                'queueLen' : $("#queueLen").val()
+            }
+
+            $.post(action(param), function(data){
+                alert(data);
+            });
+        });
+
+    });
+</script>
+#{/set}

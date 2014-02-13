@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>资讯类的</comment>
+
+    <!--根据 utsid 取新闻-->
+    <entry key="newsByUtsId">
+<![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.DECLAREDATE AS pubDate,
+  a.autor AS author,
+  a.newssource AS source
+FROM
+  news_newsinfo a
+WHERE a.UTSID = ?
+]]>
+    </entry>
+
+    <!--最新新闻-->
+    <entry key="recentNewsList">
+<![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.DECLAREDATE AS pubDate,
+  a.autor AS author,
+  a.newssource AS source
+FROM
+  news_newsinfo a
+order by a.DECLAREDATE desc
+limit 800
+]]>
+    </entry>
+
+    <!--公司新闻-->
+    <entry key="secNewsSql">
+        <![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.DECLAREDATE AS pubDate,
+  a.autor AS author,
+  a.newssource AS source,
+  cast(b.SECURITYID as CHAR) AS secId
+FROM
+  news_newsinfo a
+  INNER JOIN news_security b
+    ON a.NEWSID = b.newsid
+WHERE b.UTSID = ?
+]]>
+    </entry>
+
+    <!--公司新闻初始化-->
+    <entry key="secNewsSqlInit">
+<![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.DECLAREDATE AS pubDate,
+  a.autor AS author,
+  a.newssource AS source,
+  CAST(b.SECURITYID AS CHAR) AS secId
+FROM
+  news_newsinfo a
+  INNER JOIN news_security b
+    ON a.NEWSID = b.newsid
+where b.SECURITYID IN (#secIdGroup#)
+    AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 YEAR)
+ORDER BY b.SECURITYID, a.DECLAREDATE DESC
+]]>
+    </entry>
+
+    <!--行业新闻, 证监会一级行业分类-->
+    <entry key="induNewsSql">
+        <![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.autor AS author,
+  a.newssource AS source,
+  LEFT(b.industrycode, 1) AS industrycode
+FROM
+  news_newsinfo a
+  INNER JOIN news_industry b
+    ON a.newsid = b.newsid
+WHERE b.UTSID = ?
+]]>
+    </entry>
+
+    <!--行业新闻初始化-->
+    <entry key="induNewsSqlInit">
+<![CDATA[
+SELECT
+  a.newsid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.autor AS author,
+  a.newssource AS source
+FROM
+  news_newsinfo a
+  INNER JOIN news_industry b
+    ON a.newsid = b.newsid
+where LEFT(b.industrycode, 1) = ? /*使用一级行业分类*/
+order by a.declaredate desc
+limit 200
+]]>
+    </entry>
+
+    <!--公司公告-->
+    <entry key="secBulletin">
+        <![CDATA[
+SELECT
+  a.announcementid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.`ANNOUNCEMENTTYPE` AS fileType,
+  a.`ANNOUNCEMENTROUTE` AS attachUrl,
+  cast(b.SECURITYID as CHAR) AS secId
+FROM
+  ann_announcementinfo a
+  INNER JOIN ann_security b
+    ON a.ANNOUNCEMENTID = b.announcementid
+WHERE b.UTSID = ?
+]]>
+    </entry>
+
+    <!--公告初始化-->
+    <entry key="secBulletinInit">
+<![CDATA[
+SELECT
+  a.announcementid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.`ANNOUNCEMENTTYPE` AS fileType,
+  a.`ANNOUNCEMENTROUTE` AS attachUrl,
+  CAST(b.SECURITYID AS CHAR) AS secId
+FROM
+  ann_announcementinfo a
+  INNER JOIN ann_security b
+    ON a.ANNOUNCEMENTID = b.announcementid
+WHERE b.`SECURITYID` IN (#secIdGroup#)
+	AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 YEAR)
+ORDER BY b.SECURITYID, a.DECLAREDATE DESC
+]]>
+    </entry>
+
+    <!--行业研报-->
+    <entry key="induReportSql">
+        <![CDATA[
+SELECT
+  a.reportid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.filestoragepath AS attachUrl,
+  a.filetype AS fileType,
+  LEFT(b.industrycode, 1) AS induCode
+FROM
+  rep_reportinfo a
+  INNER JOIN rep_industry b
+    ON a.reportid = b.reportid
+WHERE b.UTSID = ?
+]]>
+    </entry>
+
+    <!--行业研报初始化-->
+    <entry key="induReportSqlInit">
+<![CDATA[
+SELECT
+  a.reportid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.filestoragepath AS attachUrl,
+  a.filetype AS fileType
+FROM
+  rep_reportinfo a
+  INNER JOIN rep_industry b
+    ON a.reportid = b.reportid
+where LEFT(b.industrycode, 1) = ?/*使用一级行业分类*/
+order by a.declaredate desc
+limit 200
+]]>
+    </entry>
+
+    <!--公司研报-->
+    <entry key="securityReportSql">
+        <![CDATA[
+SELECT
+  a.reportid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.filestoragepath AS attachUrl,
+  a.filetype AS fileType,
+  cast(b.SECURITYID as CHAR) AS secId
+FROM
+  rep_reportinfo a
+  INNER JOIN rep_security b
+    ON a.reportid = b.reportid
+WHERE b.UTSID = ?
+]]>
+    </entry>
+
+    <!--公司研报初始化-->
+    <entry key="securityReportSqlInit">
+<![CDATA[
+SELECT
+  a.reportid AS guid,
+  a.title,
+  a.declaredate AS pubDate,
+  a.filestoragepath AS attachUrl,
+  a.filetype AS fileType,
+  CAST(b.SECURITYID AS CHAR) AS secId
+FROM
+  rep_reportinfo a
+  INNER JOIN rep_security b
+    ON a.reportid = b.reportid
+where b.SECURITYID IN (#secIdGroup#)
+    AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -1 YEAR)
+ORDER BY b.SECURITYID, a.DECLAREDATE DESC
+]]>
+    </entry>
+</properties>

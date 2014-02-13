@@ -1,0 +1,930 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>财务的sql</comment>
+
+    <!--杜邦分析-->
+    <entry key="dupontAnalysis">
+<![CDATA[
+SELECT
+  a.INSTITUTIONID AS institutionId,
+  a.ENDDATE AS 'reportDate',
+  /*主营业务成本*/
+  IFNULL(a.b001201, 0) AS 'mainBusinessCost',
+  /*销售费用*/
+  IFNULL(a.b001209, 0) AS 'sellingCost',
+  /*管理费用*/
+  IFNULL(a.b001210, 0) AS 'adminCost',
+  /*财务费用*/
+  IFNULL(a.b001211, 0) AS 'financialCost',
+  /*其它成本*/
+  IFNULL(a.B0I1202,0) + IFNULL(a.B0I1203,0) + IFNULL(a.B0I1204,0) + IFNULL(a.B0I1205,0) + IFNULL(a.B0I1206,0) + IFNULL(a.B001207,0) + IFNULL(a.B0F1208,0) + IFNULL(a.B001212,0) + IFNULL(a.B0F1213,0) + IFNULL(a.B0I1214,0) - IFNULL(a.B0I1215,0) as 'otherCost',
+  /*销售收入, 金融保险取b0011字段, 其它的取b001101字段*/
+  IF(a.b001101, IFNULL(a.b001101, 0), IFNULL(a.b0011, 0)) AS 'salesIncome',
+  /*其他利润*/
+  IFNULL(a.B001301,0) + IFNULL(a.B001302,0) + IFNULL(a.B001303,0) + IFNULL(a.B001304,0) + IFNULL(a.B0014,0) - IFNULL(a.B0015,0) + IFNULL(a.B0022,0) - IFNULL(a.B0023,0) AS 'otherIncome',
+  /*所得税*/
+  IFNULL(a.b0021, 0) AS 'incomeTax',
+  /*长期资产*/
+  IFNULL(b.a0012, 0) AS 'livedAssets',
+  /*资产负债率*/
+  IFNULL(c.assetliabilityratio, 0) AS 'lev',
+  /*现金有价证券*/
+  IFNULL(b.a001101, 0) + IFNULL(b.a0d1102, 0) + IFNULL(b.a0b1103, 0) + IFNULL(b.a0b1105, 0) + IFNULL(b.a0b1104, 0) + IFNULL(b.a0f1106, 0) + IFNULL(b.a001107, 0) + IFNULL(b.a0f1108, 0) + IFNULL(b.a001109, 0) + IFNULL(b.a0f1122, 0) AS 'cashSecurities',
+  /*应收账款*/
+  IFNULL(b.a001110, 0) + IFNULL(b.a001111, 0) + IFNULL(b.a001112, 0) + IFNULL(b.A001121, 0) + IFNULL(b.A001119, 0) + IFNULL(b.A001120, 0) + IFNULL(b.A0I1113, 0) + IFNULL(b.A0I1114, 0) + IFNULL(b.A0I1115, 0) + IFNULL(b.A0I1116, 0) + IFNULL(b.A0D1126, 0) AS 'accountsReceivable',
+  /*存货*/
+  IFNULL(b.a001123, 0) + IFNULL(b.a0d1126, 0) AS 'inventory',
+  /*其他流动资产*/
+  IFNULL(b.a001124, 0) + IFNULL(b.a001125, 0) AS 'otherCurrentAssets',
+  /*资产总额(金融类的要用)*/
+  IFNULL(b. A001, 0) as 'financeTotalAssert'
+FROM
+  stk_fin_income a
+  INNER JOIN stk_fin_balance b
+  INNER JOIN stk_fin_debtpay c
+    ON a.institutionid = b.institutionid
+    AND a.enddate = b.enddate
+    AND a.statetypecode = b.statetypecode
+    AND b.institutionid = c.institutionid
+    AND b.enddate = c.enddate
+    AND b.statetypecode = c.statetypecode
+    AND a.startDate = c.startDate
+  INNER JOIN
+  /*找出每个股票最新的一期*/
+  (
+  SELECT
+    a2.institutionid,
+    MAX(a2.ENDDATE) AS maxEndDate
+  FROM
+    stk_fin_income a2
+    INNER JOIN stk_fin_balance b2
+    INNER JOIN stk_fin_debtpay c2
+      ON a2.institutionid = b2.institutionid
+      AND a2.enddate = b2.enddate
+      AND a2.statetypecode = b2.statetypecode
+      AND b2.institutionid = c2.institutionid
+      AND b2.enddate = c2.enddate
+      AND b2.statetypecode = c2.statetypecode
+      AND a2.startDate = c2.startDate
+  WHERE a2.STATETYPECODE = 'A'
+    AND a2.ENDDATE > ?
+    AND DATE_FORMAT(a2.startDate, '%m-%d') = '01-01'
+    AND DATE_FORMAT(c2.startDate, '%m-%d') = '01-01'
+  GROUP BY a2.institutionid
+  ) f2
+    ON a.ENDDATE = f2.maxEndDate
+    AND f2.institutionid = a.institutionid
+WHERE a.STATETYPECODE = 'A'
+    AND DATE_FORMAT(a.startDate, '%m-%d') = '01-01'
+    AND DATE_FORMAT(c.startDate, '%m-%d') = '01-01'
+]]>
+    </entry>
+
+    <!--财务分析-财务简表-资产负债表-->
+    <entry key="financeBalance40">
+<![CDATA[
+SELECT
+  DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+  INSTITUTIONID AS institutionId,
+  A0011 AS currentAssets,
+  A0012 AS noncurrentAssets,
+  A001 AS totalAssets,
+  A0021 AS currentLiabilities,
+  A0022 AS noncurrentLiabilities,
+  A002 AS totalLiabilities,
+  A0031 AS stockholderEquity,
+  A0032 AS fewStockholderEquity,
+  A004 AS liabiStockholderEquity
+FROM
+  STK_FIN_Balance AS a
+WHERE STATETYPECODE = 'A'
+  AND ENDDATE >= ?
+  AND INSTITUTIONID  IN (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--财务分析 - 财务简表 - 现金流量表 -->
+    <entry key="financeCashFlow40">
+<![CDATA[
+SELECT
+  DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+  INSTITUTIONID AS institutionId,
+  C001 AS cFFO,
+  C002 AS cFIA,
+  C003 AS cFFF,
+  C005 AS freeCashFlow,
+  C008 AS initialCashEquivalent,
+  C006 AS finalCashEquivalent
+FROM
+  STK_FIN_CashFlow
+WHERE STATETYPECODE = 'A'
+  AND ENDDATE >= ?
+  AND DATE_FORMAT(`STARTDATE`, '%m-%d') = '01-01'
+  AND INSTITUTIONID IN (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--财务分析 - 财务简表 - 现金流量表  单季度-->
+    <entry key="financeCashFlow40SingleSeason">
+<![CDATA[
+SELECT
+  DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+  INSTITUTIONID AS institutionId,
+  C001 AS cFFO,
+  C002 AS cFIA,
+  C003 AS cFFF,
+  C005 AS freeCashFlow,
+  C008 AS initialCashEquivalent,
+  C006 AS finalCashEquivalent
+FROM
+  STK_FIN_CashFlow
+WHERE STATETYPECODE = 'A'
+  AND ENDDATE >= ?
+  AND
+  (
+    DATE_FORMAT(`STARTDATE`, '%m-%d') <> '01-01'
+    OR
+    (
+  	DATE_FORMAT(`STARTDATE`, '%m-%d') = '01-01' AND DATE_FORMAT(`ENDDATE`, '%m-%d') = '03-31'
+    )
+  )
+  AND INSTITUTIONID IN (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--财务分析 - 财务简表 - 利润表-->
+    <entry key="financeIncome40">
+<![CDATA[
+SELECT
+  DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+  INSTITUTIONID AS institutionId,
+  B0011 AS grossRevenue,
+  B001101 AS taking,
+  B0013 AS operatingProfit,
+  B001 AS totalProfit,
+  B002 AS retainedProfits
+FROM
+  STK_FIN_Income
+WHERE STATETYPECODE = 'A'
+  AND ENDDATE >= ?
+  AND DATE_FORMAT(`STARTDATE`, '%m-%d') = '01-01'
+  AND INSTITUTIONID IN (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--财务分析 - 财务简表 - 利润表 单季度-->
+<entry key="financeIncome40SingleSeason">
+<![CDATA[
+SELECT
+  DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+  INSTITUTIONID AS institutionId,
+  B0011 AS grossRevenue,
+  B001101 AS taking,
+  B0013 AS operatingProfit,
+  B001 AS totalProfit,
+  B002 AS retainedProfits
+FROM
+  STK_FIN_Income
+WHERE STATETYPECODE = 'A'
+  AND ENDDATE >= ?
+  AND
+  (
+    DATE_FORMAT(`STARTDATE`, '%m-%d') <> '01-01'
+    OR
+    (
+  	DATE_FORMAT(`STARTDATE`, '%m-%d') = '01-01' AND DATE_FORMAT(`ENDDATE`, '%m-%d') = '03-31'
+    )
+  )
+  AND INSTITUTIONID IN (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+</entry>
+
+    <!--财务分析 - 主要财务指标-->
+    <entry key="debtPaySql">
+<![CDATA[
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	currentRatio,/*流动比率*/
+	quickRatio,/*速动比率*/
+	conservativeQuickRatio,/*保守速动比率*/
+	cashRatio,/*现金比率*/
+	workingCapitalToliability ,/*营运资金与借款比*/
+	interestCoverageRatioB,/*利息保障倍数*/
+	currentLiabilityCoverage,/*经营活动产生的现金流量净额／流动负债*/
+	interestCoverageRatioC,/*现金流利息保障倍数*/
+	maturingLiabilityCoverage,/*现金流到期债务保障倍数*/
+	assetLiabilityRatio,/*资产负债率*/
+	longtermLiabilityToAsset ,/*长期借款与总资产比*/
+	liabilityToTangibleAsset,/*有形资产负债率*/
+	interesLiabilityToTangib,/*有形资产带息债务比*/
+	equityMultiplier,/*权益乘数*/
+	debtEquityRatio,/*产权比率*/
+	equityToDebtRatio,/*权益对负债比率*/
+	longtermAssetLiabilityRatio,/*长期资本负债率*/
+	longtermLiabilityToEquity,/*长期负债权益比率*/
+	longtermLiabilityToWorking,/*长期债务与营运资金比率*/
+	eBITDAToLiability,/*息税折旧摊销前利润／负债合计*/
+	liabilityCoverage,/*经营活动产生的现金流量净额／负债合计*/
+	interesLiabilityCoverage,/*经营活动产生的现金流量净额／带息债务*/
+	liabilityToMarketValue/*负债与权益市价比率*/
+FROM
+	STK_FIN_DebtPay
+
+WHERE
+	STATETYPECODE = 'A'
+	AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+	AND ENDDATE >= ?
+	AND INSTITUTIONID in (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE  DESC
+]]>
+    </entry>
+
+    <entry key="earnPowerSql">
+        <![CDATA[
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	operatingProfiToRevenue,/*营业利润率*/
+	operatingMarginRatio ,/*营业毛利率*/
+	rOA1B,/*资产报酬率*/
+	rOA2B,/*总资产净利润率（ROA）*/
+	netProfitToCurrentAssetB,/*流动资产净利润率*/
+	rOEB,/*净资产收益率（ROE）*/
+	returnOnInvestedCapital,/*投入资本回报率*/
+	returnOnLongTermInvested,/*长期资本收益率*/
+	operatingCostRatio,/*营业成本率*/
+	salesExpenseRate/*销售费用率*/
+FROM
+	STK_FIN_EarnPower
+
+WHERE
+	STATETYPECODE = 'A'
+	AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+	AND ENDDATE >= ?
+	AND INSTITUTIONID in (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE  DESC
+                ]]>
+    </entry>
+
+    <entry key="perShareSql">
+<![CDATA[
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	eps,	/*基本每股收益*/
+    dilutedEPS, /*稀释每股收益*/
+	ePSA,/*每股收益-期末股本摊薄*/
+	ePSB,/*每股收益-最新股本摊薄*/
+	ePSTTMA,/*每股收益TTM-期末股本摊薄*/
+	ePSTTMB,/*每股收益TTM-最新股本摊薄*/
+	retainedEarningPerShare,/*每股留存收益*/
+	eBITPerShare,/*息税前每股收益*/
+	totalRevenuePerShare,/*每股营业总收入*/
+	revenuePerShare,/*每股营业收入*/
+	operatingProfitPerShare,/*每股营业利润*/
+	nAV,/*每股净资产*/
+	operatingNCFPerShare,/*每股经营活动产生的现金流量*/
+	capitalSurplusPerShare,/*每股资本公积*/
+	surplusReservePerShare,/*每股盈余公积*/
+	undistributedProfitPerShare,/*每股未分配利润*/
+	companyNCFPerShareA/*每股企业自由现金流量*/
+FROM
+	STK_FIN_PerShare
+
+WHERE
+	STATETYPECODE = 'A'
+	AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+	AND ENDDATE >= ?
+	AND INSTITUTIONID in (#orgIdGroup#)
+ORDER BY INSTITUTIONID, ENDDATE  DESC
+]]>
+    </entry>
+
+    <!---->
+    <entry key="lcDiscloseIndexSql">
+<![CDATA[
+SELECT INSTITUTIONID AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+    ROE AS roe /*加权平均净资产收益率(%)*/
+FROM STK_FIN_LCDiscloseIndex
+WHERE
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--资产负债表附注—资产减值准备-->
+    <entry key="assetImpairmentSql">
+        <![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+    item,/*项目*/
+    beginningYearValue,/*期初余额*/
+    currentProvision,/*本期增加额—本期计提*/
+    addOther,/*本期增加额—其他*/
+    currentReversal,/*本期减少额—转回*/
+    currentReseller,/*本期减少额—转销*/
+    lowerOther,/*本期减少额—其他*/
+    endingYearValue /*期末余额*/
+FROM
+    STK_Notes_AssetImpairment
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+    AND StateTypeCode = 1
+    ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--资产负债表附注—长期股权投资-->
+    <entry key="equityInvestSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	category,/*类别*/
+	longtermInvestmentProjects,/*长期投资项目*/
+	accountingMethods,/*核算方法*/
+	investmentCost,/*投资成本*/
+	beginningBalance,/*期初余额*/
+	changesValue,/*增减变动*/
+	endingBalance,/*期末余额*/
+	shareholdingScale,/*持股比例（%）*/
+	voteScale,/*表决权比例（%）*/
+	currency/*币种*/
+FROM
+    STK_Notes_EquityInvest
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+    AND StateTypeCode = 1
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--资产负债表附注—长期待摊费用-->
+    <entry key="longtermPrepaidFeeSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	item,/*项目*/
+	beginningYearValue,/*期初余额*/
+	increaseDuringYear,/*本年增加*/
+	amortizationYear,/*本年摊销*/
+	decreaseDueOther,/*其他减少*/
+	endingYearValue/*期末余额*/
+FROM
+    STK_Notes_LongtermPrepaidFee
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+    AND StateTypeCode = 1
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--资产负债表附注—递延所得税资产和递延所得税负债-->
+    <entry key="deferredIncomeTaxSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+    deferredIncomeTaxType,/*递延所得税类型*/
+	category,/*类别*/
+	item,/*项目*/
+	beginningYearValue,/*期初余额*/
+	endingYearValue/*期末余额*/
+
+FROM
+    STK_Notes_DeferredIncomeTax
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+    AND StateTypeCode = 1
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--利润表附注—营业收入、营业成本-->
+    <entry key="operateIncomeCostsSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+    item,/*项目*/
+	category,/*类别*/
+	distributionStandard,/*分布标准*/
+	currency,/*币种*/
+	earnings,/*本期收入金额*/
+	costs,/*本期成本金额*/
+	grossMarginRate,/*本期毛利率*/
+	previousEarnings,/*上期收入金额*/
+	previousCosts,/*上期成本金额*/
+	previousGrossMarginRate/*上期毛利率*/
+
+FROM
+    STK_Notes_OperateIncomeCosts
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND ENDDATE >= ?
+    AND StateTypeCode = 1
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--利润表附注—财务费用-->
+    <entry key="financeCostsSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+    item,/*项目*/
+    currency,/*币种*/
+    amount,/*本期金额*/
+    previousAmount/*上期金额*/
+
+FROM
+    STK_Notes_FinanceCosts
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND StateTypeCode = 1
+    AND ENDDATE >= ?
+ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--利润表附注—营业税金及附加-->
+    <entry key="businessTaxAppendSql">
+<![CDATA[
+SELECT
+    CAST(INSTITUTIONID AS UNSIGNED) AS institutionId,
+    DATE_FORMAT(ENDDATE, '%Y-%m-%d') AS enddateStr,
+	taxType,/*税种*/
+	currency,/*币种*/
+	amount,/*本期金额*/
+	previousAmount,/*上期金额*/
+	taxBasis/*计税基础*/
+FROM
+    STK_Notes_BusinessTaxAppend
+where
+    INSTITUTIONID in (#orgIdGroup#)
+    AND StateTypeCode = 1
+    AND ENDDATE >= ?
+    ORDER BY INSTITUTIONID, ENDDATE DESC
+]]>
+    </entry>
+
+    <!--短期偿债能力-->
+    <entry key="shortDebtRepayment">
+<![CDATA[
+/*短期偿债能力*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	(CurrentRatio + QuickRatio + CashRatio + WorkingCapitalRatio) / 4  AS avgVal
+FROM (
+
+SELECT
+	distA.*
+FROM
+(
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE AS endDate,
+		IFNULL(a.CurrentRatio, 0) AS CurrentRatio, /*流动比率*/
+		IFNULL(a.QuickRatio, 0) AS QuickRatio, /*速动比率*/
+		IFNULL(a.CashRatio, 0) AS CashRatio, /*现金比率*/
+		IFNULL(b.WorkingCapitalRatio, 0) AS WorkingCapitalRatio /*营运资金比率*/
+	FROM
+		STK_FIN_DebtPay a
+		INNER JOIN STK_FIN_Construct b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE = 'A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+) distA
+INNER JOIN
+(
+	SELECT
+		a.`INSTITUTIONID`,
+		MAX(a.ENDDATE) AS endDate
+	FROM
+	STK_FIN_DebtPay a
+		INNER JOIN STK_FIN_Construct b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE = 'A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+	GROUP BY a.INSTITUTIONID
+) distB
+ON distA.INSTITUTIONID = distB.INSTITUTIONID
+AND distA.endDate = distB.endDate
+
+) tt
+]]>
+    </entry>
+
+    <!--长期偿债能力-->
+    <entry key="longDebtRepayment">
+<![CDATA[
+/*长期偿债能力*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	(a1 + a2 + a3 + a4 + a5 + b1 + b2 + b3 + b4) / 9  AS avgVal
+FROM (
+
+SELECT distA.*
+FROM
+(
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE AS endDate,
+		IFNULL(a.AssetLiabilityRatio, 0) AS a1, /*资产负债率*/
+		IFNULL(a.LongtermAssetLiabilityRatio, 0) AS a2, /*长期资本负债率*/
+		IFNULL(a.InterestCoverageRatioB, 0) AS a3, /*利息保障倍数B*/
+		IFNULL(a.DebtEquityRatio, 0) AS a4, /*产权比率*/
+		IFNULL(a.EquityMultiplier, 0) AS a5, /*权益乘数*/
+		IFNULL(b.EquityRatio, 0) AS b1, /*所有者权益比率*/
+		IFNULL(b.CurrentAssetRatio, 0) AS b2, /*流动资产比率*/
+		IFNULL(b.CurrentLiabilityRatio, 0) AS b3, /*流动负债比率*/
+		IFNULL(b.NoncurrentLiabilityRatio, 0) AS b4 /*非流动负债比率*/
+
+	FROM
+		STK_FIN_DebtPay a
+		INNER JOIN STK_FIN_Construct b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE = 'A'
+		AND a.INSTITUTIONID IN (#orgGroup#)
+) AS distA
+INNER JOIN
+(
+	SELECT
+		a.INSTITUTIONID,
+		MAX(a.ENDDATE) AS endDate
+	FROM
+		STK_FIN_DebtPay a
+		INNER JOIN STK_FIN_Construct b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE = 'A'
+		AND a.INSTITUTIONID IN (#orgGroup#)
+	GROUP BY a.INSTITUTIONID
+) AS distB
+ON distA.INSTITUTIONID = distB.INSTITUTIONID
+AND distA.endDate = distB.endDate
+
+) tt
+]]>
+    </entry>
+
+    <!--经营能力-->
+    <entry key="operateCapacity">
+<![CDATA[
+/*经营能力*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	(a1 + a2 + a3 + a4 + a5 + a6 +a7 + a8 + a9 + a10) / 10 AS avgVal
+FROM (
+
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE AS endDate,
+		IFNULL(ReceivableTurnoverB, 0) AS a1, /*应收账款周转率B*/
+		IFNULL(InventoryTurnoverB, 0) AS a2, /*存货周转率B*/
+		IFNULL(PayableTurnoverB, 0) AS a3, /*应付账款周转率B*/
+		IFNULL(WorkingCapitalTurnoverB, 0) AS a4, /*营运资金（资本）周转率B*/
+		IFNULL(CashEquivalentTurnoverB, 0) AS a5, /*现金及现金等价物周转率B*/
+		IFNULL(CurrentAssetTurnoverB, 0) AS a6, /*流动资产周转率B*/
+		IFNULL(FixedAssetTurnoverB, 0) AS a7, /*固定资产周转率B*/
+		IFNULL(NoncurrentAssetTurnoverB, 0) AS a8, /*非流动资产周转率B*/
+		IFNULL(AssetTurnoverB, 0) AS a9, /*总资产周转率B*/
+		IFNULL(EequityTurnoverB, 0) AS a10 /*股东权益周转率B*/
+	FROM STK_FIN_Operate a
+	INNER JOIN
+	(
+		SELECT INSTITUTIONID, MAX(ENDDATE) AS ENDDATE
+		FROM STK_FIN_Operate
+		WHERE STATETYPECODE='A'
+		    AND DATE_FORMAT(STARTDATE, '%m-%d')='01-01'
+		    AND INSTITUTIONID IN (#orgGroup#)
+		GROUP BY INSTITUTIONID
+	) AS b
+		ON a.`INSTITUTIONID` = b.INSTITUTIONID
+		AND a.ENDDATE = b.ENDDATE
+
+	WHERE a.STATETYPECODE='A'
+		AND DATE_FORMAT(a.STARTDATE, '%m-%d')='01-01'
+		AND a.INSTITUTIONID IN (#orgGroup#)
+
+) tt
+]]>
+    </entry>
+
+    <!--盈利能力-->
+    <entry key="earnPowerCapacity">
+<![CDATA[
+/*盈利能力*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	(a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + b1 ) / 11  AS avgVal
+FROM (
+
+SELECT distA.*
+FROM
+(
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE AS ENDDATE,
+		IFNULL(a.OperatingProfiToRevenue, 0) AS a1, /*营业利润率*/
+		IFNULL(a.OperatingMarginRatio, 0) AS a2, /*营业毛利率*/
+		IFNULL(a.ROA1B, 0) AS a3, /*资产报酬率B*/
+		IFNULL(a.ROA2B, 0) AS a4, /*总资产净利润率（ROA）B*/
+		IFNULL(a.NetProfitToCurrentAssetB, 0) AS a5, /*流动资产净利润率B*/
+		IFNULL(a.ROEB, 0) AS a6, /*净资产收益率B*/
+		IFNULL(a.ReturnOnInvestedCapital, 0) AS a7, /*投入资本回报率*/
+		IFNULL(a.ReturnOnLongTermInvested, 0) AS a8, /*长期资本收益率*/
+		IFNULL(a.OperatingCostRatio, 0) AS a9, /*营业成本率*/
+		IFNULL(a.SalesExpenseRate, 0) AS a10, /*SalesExpenseRate*/
+		IFNULL(b.ROE, 0) AS b1 /*加权平均净资产收益率*/
+	FROM
+		STK_FIN_EarnPower a
+		INNER JOIN STK_FIN_LCDiscloseIndex b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+) AS distA
+
+INNER JOIN
+
+(
+	SELECT
+		a.INSTITUTIONID,
+		MAX(a.ENDDATE) AS ENDDATE
+	FROM
+		STK_FIN_EarnPower a
+		INNER JOIN STK_FIN_LCDiscloseIndex b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+	WHERE a.STATETYPECODE = 'A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+	GROUP BY a.`INSTITUTIONID`
+) distB
+
+	ON distA.INSTITUTIONID = distB.INSTITUTIONID
+	AND distA.ENDDATE = distB.ENDDATE
+
+) tt
+]]>
+    </entry>
+
+    <!--投资收益, 这里还缺字段, 以后数据那边会补上-->
+    <entry key="roiCapacity">
+<![CDATA[
+/*投资收益, 这里还缺字段, 以后数据那边会补上*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	/*(a1 + a2 + b1 + c1 ) / 4  as avgVal*/
+	(a2 + b1 + c1 ) / 3  AS avgVal
+FROM (
+
+SELECT distA.*
+FROM
+
+(
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE,
+		/* ifnull(a.ReturnOnInvestment, 0) as a1,*/ /*投资收益率*/  /*这个字段以后有*/
+		IFNULL(a.ROEB, 0) AS a2, /*净资产收益率B*/
+		IFNULL(b.DistributionRate, 0) AS b1, /*股利分配率*/
+		IFNULL(c.ReturnA, 0) AS c1 /*普通股获利率A*/
+
+	FROM
+		STK_FIN_EarnPower a
+		INNER JOIN STK_FIN_DiviDistrib b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d')='01-01'
+			AND DATE_FORMAT(b.`STARTDATE`, '%m-%d')='01-01'
+
+		INNER JOIN STK_FIN_RelativeValue c
+			ON a.ENDDATE = c.ENDDATE
+			AND a.STARTDATE = c.STARTDATE
+			AND a.INSTITUTIONID = c.INSTITUTIONID
+			AND DATE_FORMAT(c.`STARTDATE`, '%m-%d')='01-01'
+
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE='A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+) AS distA
+
+INNER JOIN
+
+(
+	SELECT
+		a.INSTITUTIONID,
+		MAX(a.ENDDATE) AS ENDDATE
+	FROM
+		STK_FIN_EarnPower a
+		INNER JOIN STK_FIN_DiviDistrib b
+			ON a.ENDDATE = b.ENDDATE
+			AND a.STARTDATE = b.STARTDATE
+			AND a.INSTITUTIONID = b.INSTITUTIONID
+			AND a.STATETYPECODE = b.STATETYPECODE
+			AND DATE_FORMAT(a.`STARTDATE`, '%m-%d')='01-01'
+            AND DATE_FORMAT(b.`STARTDATE`, '%m-%d')='01-01'
+
+		INNER JOIN STK_FIN_RelativeValue c
+			ON a.ENDDATE = c.ENDDATE
+			AND a.STARTDATE = c.STARTDATE
+			AND a.INSTITUTIONID = c.INSTITUTIONID
+			AND DATE_FORMAT(c.`STARTDATE`, '%m-%d')='01-01'
+
+	WHERE a.STATETYPECODE = 'A'
+		AND b.STATETYPECODE='A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+	GROUP BY a.INSTITUTIONID
+) AS distB
+
+	ON distA.INSTITUTIONID = distB.INSTITUTIONID
+	AND distA.ENDDATE = distB.ENDDATE
+
+) tt
+]]>
+    </entry>
+
+    <!--成长性, 这个字段全缺, 先搞几个不是的字段有个结构吧. -->
+    <entry key="developmentCapacity">
+<![CDATA[
+/*成长性, 这个字段全缺, 先搞几个不是的字段有个结构吧.*/
+SELECT
+	INSTITUTIONID AS institutionId,
+	DATE_FORMAT(endDate, '%Y-%m-%d') AS enddateStr,
+	/*(a1 + a2 + a3 + a4 + a5 + a6 +a7 + a8 + a9 + a10 + a11) / 11 AS avgVal*/
+	(a1 + a2) / 2 AS avgVal
+FROM (
+
+	SELECT
+		a.INSTITUTIONID,
+		a.ENDDATE,
+		IFNULL(FIXEDASSETSGROWTHA, 0) AS a1,
+		IFNULL(EQUITYAPPRECIATIONRATIOB, 0) AS a2
+		/* IFNULL(AssetsGrowthC, 0) AS a1, 总资产增长率C*/
+		/* IFNULL(OperatingRevenueGrowthC, 0) AS a2, 营业收入增长率C*/
+		/* IFNULL(OperatingProfitGrowthC, 0) AS a3, 营业利润增长率C*/
+		/* IFNULL(EquityGrowthC, 0) AS a4, 所有者权益增长率C*/
+		/* IFNULL(EPSGrowthC, 0) AS a5, 基本每股收益增长率C*/
+		/* IFNULL(EPSGrowthC, 0) AS a6, 基本每股收益增长率C*/
+		/* IFNULL(NAVGrowthC, 0) AS a7, 每股净资产增长率C*/
+		/* IFNULL(TotalProfitGrowthC, 0) AS a8, 利润总额增长率C*/
+		/* IFNULL(ROEGrowthC, 0) AS a9, 净资产收益率增长率C*/
+		/* IFNULL(NetProfitGrowthC, 0) AS a10, 净利润增长率C*/
+		/* IFNULL(FixedAssetsGrowthC, 0) AS a11 固定资产增长率C*/
+
+	FROM STK_FIN_Development AS a
+	INNER JOIN
+	(
+		SELECT
+			INSTITUTIONID, MAX(ENDDATE) AS ENDDATE
+		FROM STK_FIN_Development
+		WHERE DATE_FORMAT(`STARTDATE`, '%m-%d') = '01-01'
+			AND `STATETYPECODE` = 'A'
+			AND `INSTITUTIONID` IN (#orgGroup#)
+		GROUP BY INSTITUTIONID
+	) AS b
+		ON a.`INSTITUTIONID` = b.INSTITUTIONID
+		AND a.ENDDATE = b.ENDDATE
+	WHERE
+		DATE_FORMAT(a.`STARTDATE`, '%m-%d') = '01-01'
+		AND STATETYPECODE='A'
+		AND a.`INSTITUTIONID` IN (#orgGroup#)
+
+) tt
+]]>
+    </entry>
+
+    <!--一季报-->
+    <entry key="financeReport1">
+<![CDATA[
+SELECT
+	a.`ANNOUNCEMENTID` AS aid, /*id*/
+	DATE_FORMAT(a.`DECLAREDATE`, '%Y-%m-%d') AS declareDateStr, /*公告日期*/
+	a.`TITLE` AS title, /*标题*/
+	a.`ANNOUNCEMENTROUTE` AS route, /*路径地址*/
+	a.`ANNOUNCEMENTTYPE` AS ptype, /*类型*/
+	cast(c.`SECURITYID` as CHAR) AS secId
+FROM ann_announcementinfo a
+	INNER JOIN ann_classify b
+		ON a.`ANNOUNCEMENTID` = b.`ANNOUNCEMENTID`
+	INNER JOIN ann_security c
+		ON a.`ANNOUNCEMENTID` = c.`ANNOUNCEMENTID`
+WHERE b.`CLASSIFYID` LIKE '010305%' /*一季报*/
+	AND c.`SECURITYID` IN  (#secIdGroup#)
+	AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -13 YEAR)
+ORDER BY c.`SECURITYID`, a.`DECLAREDATE` DESC
+]]>
+    </entry>
+
+<!--财务报表中报-->
+    <entry key="financeReport2">
+<![CDATA[
+SELECT
+	a.`ANNOUNCEMENTID` AS aid, /*id*/
+	DATE_FORMAT(a.`DECLAREDATE`, '%Y-%m-%d') AS declareDateStr, /*公告日期*/
+	a.`TITLE` AS title, /*标题*/
+	a.`ANNOUNCEMENTROUTE` AS route, /*路径地址*/
+	a.`ANNOUNCEMENTTYPE` AS ptype, /*类型*/
+	cast(c.`SECURITYID` as CHAR) AS secId
+FROM ann_announcementinfo a
+	INNER JOIN ann_classify b
+		ON a.`ANNOUNCEMENTID` = b.`ANNOUNCEMENTID`
+	INNER JOIN ann_security c
+		ON a.`ANNOUNCEMENTID` = c.`ANNOUNCEMENTID`
+WHERE b.`CLASSIFYID` LIKE '010303%' /*中报*/
+	AND c.`SECURITYID` IN  (#secIdGroup#)
+	AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -13 YEAR)
+ORDER BY c.`SECURITYID`, a.`DECLAREDATE` DESC
+]]>
+    </entry>
+
+<!--三季报-->
+    <entry key="financeReport3">
+<![CDATA[
+SELECT
+	a.`ANNOUNCEMENTID` AS aid, /*id*/
+	DATE_FORMAT(a.`DECLAREDATE`, '%Y-%m-%d') AS declareDateStr, /*公告日期*/
+	a.`TITLE` AS title, /*标题*/
+	a.`ANNOUNCEMENTROUTE` AS route, /*路径地址*/
+	a.`ANNOUNCEMENTTYPE` AS ptype, /*类型*/
+	cast(c.`SECURITYID` as CHAR) AS secId
+FROM ann_announcementinfo a
+	INNER JOIN ann_classify b
+		ON a.`ANNOUNCEMENTID` = b.`ANNOUNCEMENTID`
+	INNER JOIN ann_security c
+		ON a.`ANNOUNCEMENTID` = c.`ANNOUNCEMENTID`
+WHERE b.`CLASSIFYID` LIKE '010307%' /*三季报*/
+	AND c.`SECURITYID` IN  (#secIdGroup#)
+	AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -13 YEAR)
+ORDER BY c.`SECURITYID`, a.`DECLAREDATE` DESC
+]]>
+    </entry>
+
+    <!--财务报表年报-->
+    <entry key="financeReport4">
+<![CDATA[
+SELECT
+	a.`ANNOUNCEMENTID` AS aid, /*id*/
+	DATE_FORMAT(a.`DECLAREDATE`, '%Y-%m-%d') AS declareDateStr, /*公告日期*/
+	a.`TITLE` AS title, /*标题*/
+	a.`ANNOUNCEMENTROUTE` AS route, /*路径地址*/
+	a.`ANNOUNCEMENTTYPE` AS ptype, /*类型*/
+	cast(c.`SECURITYID` as CHAR) AS secId
+FROM ann_announcementinfo a
+	INNER JOIN ann_classify b
+		ON a.`ANNOUNCEMENTID` = b.`ANNOUNCEMENTID`
+	INNER JOIN ann_security c
+		ON a.`ANNOUNCEMENTID` = c.`ANNOUNCEMENTID`
+WHERE b.`CLASSIFYID` LIKE '010301%' /*年报*/
+	AND c.`SECURITYID` IN  (#secIdGroup#)
+	AND a.`DECLAREDATE` >= DATE_ADD(CURDATE(), INTERVAL -13 YEAR)
+ORDER BY c.`SECURITYID`, a.`DECLAREDATE` DESC
+]]>
+    </entry>
+
+</properties>

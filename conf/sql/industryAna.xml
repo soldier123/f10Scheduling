@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>行业分析sql</comment>
+
+    <!--个股涨跌幅, 近三个月的-->
+    <entry key="stockReturnDaily">
+<![CDATA[
+/*个股涨跌幅, 近三个月的*/
+SELECT
+    TRADINGDATE AS tradingDate, /*交易日*/
+    Return3Month1 AS return3Month1, /*进三个月累计涨跌幅*/
+    ReturnDaily1 AS returnDaily1 /*日回报*/
+FROM STK_MKT_Returns a
+WHERE SECURITYID = ?
+    AND TRADINGDATE >= DATE_ADD(?, INTERVAL -3 MONTH)
+ORDER BY TRADINGDATE ASC
+]]>
+    </entry>
+
+    <!--指数涨跌幅, 近三个月的-->
+    <entry key="idxReturnDaily">
+<![CDATA[
+/*指数涨跌幅, 近三个月的*/
+SELECT
+    TRADINGDATE AS tradingDate, /*交易日*/
+    Return3Month AS return3Month1, /*近三个月累计涨跌幅*/
+    MaxIncrease3Month  AS maxIncrease3Month, /*近三个月最大涨幅*/
+    MaxDecline3Month AS maxDecline3Month, /*近三个月最大跌幅*/
+    RETURNDAILY as returnDaily1 /*每日回报*/
+FROM IDX_MarketReturns
+WHERE SECURITYID = ?
+    AND TRADINGDATE >= DATE_ADD(?, INTERVAL -3 MONTH)
+ORDER BY TRADINGDATE ASC
+]]>
+    </entry>
+
+    <!-- 证券会一级行业 公司规模排名 -->
+    <entry key="companyScaleRank">
+<![CDATA[
+/*证券会一级行业 公司规模排名*/
+SELECT
+    @curRank := @curRank + 1 AS rank,
+    INSTITUTIONID AS institutionId,
+    MarketValue AS totalValue
+FROM
+    (SELECT @curRank := 0) r,
+
+	(
+	SELECT c.INSTITUTIONID, b.MarketValue
+    FROM STK_MKT_QuotationLatest b
+    INNER JOIN (
+        SELECT
+            k.*
+        FROM stk_industryclass k
+            INNER JOIN
+            (
+                SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+                FROM stk_industryclass
+                WHERE INDUSTRYCLASSIFICATIONID = 'P0207'
+                GROUP BY INSTITUTIONID
+            ) AS v
+            ON k.`INSTITUTIONID` = v.INSTITUTIONID AND k.CHANGEDATE = v.CHANGEDATE
+        WHERE k.INDUSTRYCLASSIFICATIONID='P0207'
+    ) AS c
+		ON b.SYMBOL = c.SYMBOL
+    INNER JOIN stk_stockinfo d
+        on c.SYMBOL = d.SYMBOL
+	WHERE LEFT(c.INDUSTRYCODE, 3) = ?/*左边3个字符表示二级分类*/
+	    AND c.INDUSTRYCLASSIFICATIONID='P0207'
+	    and d.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+	) t
+ORDER BY MarketValue DESC
+]]>
+    </entry>
+
+    <!--最新的每股净资产 (估值水平要用)-->
+    <entry key="BVPSLatest">
+<![CDATA[
+SELECT
+	a.INSTITUTIONID AS institutionId,
+	IFNULL(a.`NAV`,0) AS nav/*每股净资产*/
+FROM
+	STK_FIN_PerShare a
+	INNER JOIN (
+		SELECT a.`INSTITUTIONID`, MAX(a.`ENDDATE`) AS ENDDATE
+		FROM STK_FIN_PerShare a
+		WHERE DATE_FORMAT(a.`STARTDATE`, '%m-%d')='01-01'
+			AND DATE_FORMAT(a.`ENDDATE`, '%m-%d')='12-31'
+			AND a.`STATETYPECODE` = 'A'
+		GROUP BY a.`INSTITUTIONID`
+	) AS b
+		ON a.`INSTITUTIONID` = b.INSTITUTIONID
+		AND a.ENDDATE = b.ENDDATE
+WHERE DATE_FORMAT(a.`STARTDATE`, '%m-%d')='01-01'
+	AND DATE_FORMAT(a.`ENDDATE`, '%m-%d')='12-31'
+	AND a.`STATETYPECODE` = 'A'
+]]>
+    </entry>
+
+    <!--估值水平 最新数据-->
+    <entry key="appraisementLatestData">
+<![CDATA[
+SELECT distA.*, marketValue, closePrice
+FROM
+
+(
+
+	SELECT
+		a.SECURITYID AS secId,
+		YEAR(a.`ENDDATE`) AS lastYear, /*最新的年度*/
+		pe1a,/*市盈率(11A)*/
+		pe1ttm,/*市盈率(TTM)*/
+		psa,   /*市销率(11A)*/
+		psttm,/*市销率(TTM)*/
+		pbva, /*市净率(11A)*/
+		pcfa,/*市现率(11A)*/
+		pcfttm,/*市现率(TTM)*/
+		evtoebitdattm,/*EV/EBITDA(TTM)*/
+		evtoebitda/*EV/EBITDA(11A)*/
+	FROM STK_FIN_RelativeValue a
+	INNER JOIN (
+		SELECT SECURITYID, MAX(ENDDATE) AS ENDDATE
+		FROM STK_FIN_RelativeValue
+		WHERE DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+			AND DATE_FORMAT(`ENDDATE`, '%m-%d')='12-31'
+		GROUP BY SECURITYID
+	) AS c
+		ON a.`SECURITYID` = c.SECURITYID
+		AND a.ENDDATE = c.ENDDATE
+	INNER JOIN stk_stockinfo f
+		ON a.SECURITYID = f.SECURITYID
+	WHERE DATE_FORMAT(a.STARTDATE, '%m-%d') = '01-01'
+		AND DATE_FORMAT(a.`ENDDATE`, '%m-%d')='12-31'
+		AND f.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+
+) AS distA,
+
+(
+	SELECT
+		SECURITYID AS secId,
+		MarketValue AS marketValue,/*总市值*/
+		`CLOSEPRICE` AS closePrice /*最新收盘价*/
+	FROM
+		STK_MKT_QuotationLatest
+)	AS distB
+
+WHERE distA.secId = distB.secId
+]]>
+    </entry>
+
+    <!--证券会二级行业 最新的财务时间-->
+    <entry key="financeLatelyReportDate">
+<![CDATA[
+SELECT MAX(a.ENDDATE) AS endDate
+FROM  STK_FIN_PerShare a
+	INNER JOIN (
+	    SELECT
+            k.*
+        FROM stk_industryclass k
+            INNER JOIN
+            (
+                SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+                FROM stk_industryclass
+                WHERE INDUSTRYCLASSIFICATIONID = 'P0207'
+                GROUP BY INSTITUTIONID
+            ) AS v
+            ON k.`INSTITUTIONID` = v.INSTITUTIONID AND k.CHANGEDATE = v.CHANGEDATE
+        WHERE k.INDUSTRYCLASSIFICATIONID='P0207'
+	) AS b
+		ON a.INSTITUTIONID = b.INSTITUTIONID
+	INNER JOIN stk_stockinfo d
+	    on b.INSTITUTIONID = d.INSTITUTIONID
+WHERE a.STATETYPECODE='A'
+	AND LEFT(b.INDUSTRYCODE, 3) = ?/*左边3个字符表示二级分类*/
+	AND b.INDUSTRYCLASSIFICATIONID='P0207'
+	and d.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+]]>
+    </entry>
+
+    <!--证券会二级行业 财务状况 取最近4期-->
+    <entry key="financeStats">
+<![CDATA[
+/*证券会二级行业 财务状况 取最近4期*/
+SELECT INSTITUTIONID, ENDDATE, EPS
+FROM (
+	SELECT
+		distA.*, FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS RANK
+	FROM
+		(
+			SELECT a.INSTITUTIONID, a.ENDDATE, a.EPS
+			FROM  STK_FIN_PerShare a
+				INNER JOIN (
+				    SELECT
+				    	k.*
+				    FROM stk_industryclass k
+				    	INNER JOIN
+				    	(
+				    		SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+				    		FROM stk_industryclass
+				    		WHERE INDUSTRYCLASSIFICATIONID = 'P0207'
+				    		GROUP BY INSTITUTIONID
+				    	) AS v
+				    	ON k.`INSTITUTIONID` = v.INSTITUTIONID AND k.CHANGEDATE = v.CHANGEDATE
+				    WHERE k.INDUSTRYCLASSIFICATIONID='P0207'
+				) AS b
+					ON a.INSTITUTIONID = b.INSTITUTIONID
+				INNER JOIN
+				/* 下面子查询对应的业务逻辑是：对于AB同股的EPS显示A股  对于只有B股的显示B股数据*/
+				( SELECT * FROM (
+                    SELECT a.*, FIND_IN_SET(a.SHARETYPE, rankData.SALLIST) AS RANK
+                    FROM
+                        stk_stockinfo AS a
+                        INNER JOIN
+                        (
+                            SELECT  INSTITUTIONID, GROUP_CONCAT(SHARETYPE ORDER BY SHARETYPE) AS SALLIST
+                            FROM stk_stockinfo
+                            GROUP BY INSTITUTIONID
+                        ) AS rankData
+
+                        ON a.INSTITUTIONID = rankData.INSTITUTIONID
+                )  AS distA
+                WHERE
+                RANK = 1) AS d
+
+					    on b.INSTITUTIONID = d.INSTITUTIONID
+			WHERE a.STATETYPECODE='A'
+				AND a.ENDDATE > ?
+				AND LEFT(b.INDUSTRYCODE, 3) = ?/*左边3个字符表示二级分类*/
+				AND b.INDUSTRYCLASSIFICATIONID='P0207'
+				and d.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+		) AS distA,
+
+		/*以下的子查询rankData 用于排名数据*/
+		(
+			SELECT c.INSTITUTIONID, GROUP_CONCAT( c.ENDDATE ORDER BY c.ENDDATE DESC ) SALLIST
+			FROM STK_FIN_PerShare c
+				INNER JOIN (
+				    SELECT
+                        k.*
+                    FROM stk_industryclass k
+                        INNER JOIN
+                        (
+                            SELECT INSTITUTIONID, MAX(CHANGEDATE) AS CHANGEDATE
+                            FROM stk_industryclass
+                            WHERE INDUSTRYCLASSIFICATIONID = 'P0207'
+                            GROUP BY INSTITUTIONID
+                        ) AS v
+                        ON k.`INSTITUTIONID` = v.INSTITUTIONID AND k.CHANGEDATE = v.CHANGEDATE
+                    WHERE k.INDUSTRYCLASSIFICATIONID='P0207'
+				) AS d
+					ON c.INSTITUTIONID = d.INSTITUTIONID
+				INNER JOIN
+				/* 下面子查询对应的业务逻辑是：对于AB同股的EPS显示A股  对于只有B股的显示B股数据*/
+				( SELECT * FROM (
+                    SELECT a.*, FIND_IN_SET(a.SHARETYPE, rankData.SALLIST) AS RANK
+                    FROM
+                        stk_stockinfo AS a
+                        INNER JOIN
+                        (
+                            SELECT  INSTITUTIONID, GROUP_CONCAT(SHARETYPE ORDER BY SHARETYPE) AS SALLIST
+                            FROM stk_stockinfo
+                            GROUP BY INSTITUTIONID
+                        ) AS rankData
+
+                        ON a.INSTITUTIONID = rankData.INSTITUTIONID
+                )  AS distA
+                WHERE
+                RANK = 1) AS e
+
+	                on d.INSTITUTIONID = e.INSTITUTIONID
+			WHERE c.STATETYPECODE='A'
+				AND c.ENDDATE > ?
+				AND LEFT(d.INDUSTRYCODE, 3) = ?/*左边3个字符表示二级分类*/
+				AND d.INDUSTRYCLASSIFICATIONID='P0207'
+				and e.STATUSID IN ('P0801','P0804','P0805','P0806','P0807','P0808','P0809','P0810','P0811','P0812','P0899')
+			GROUP BY c.INSTITUTIONID
+		) AS rankData
+
+	WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID
+
+) ttt
+
+WHERE RANK BETWEEN 1 AND 4
+
+ORDER BY ENDDATE DESC, EPS DESC, INSTITUTIONID
+]]>
+    </entry>
+
+
+</properties>

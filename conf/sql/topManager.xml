@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>高管研究的sql</comment>
+
+    <!--高管人员. (P353%), 董事会(P351%), 监事会(P352%)-->
+    <entry key="topManagerJob2">
+        <![CDATA[
+/*高管人员*/
+SELECT
+  a.INSTITUTIONID AS institutionId,
+  b.Resume AS 'resume', /*简历*/
+  LEFT(a.POSITIONID, 4) AS positionType,/*职位类型*/
+  a.FULLNAME AS 'name', /*名称*/
+  b.BIRTHYEAR AS birthYear, /*出生年*/
+  CASE
+    UPPER(b.GENDER)
+    WHEN 'M' THEN '男'
+    WHEN 'F' THEN '女'
+    ELSE '未知'
+  END AS sex, /*姓别*/
+  b.DEGREE_H AS degree, /*学历*/
+  MIN( IFNULL( DATE_FORMAT(a.SERVICESTARTDATE, '%Y-%m-%d'), '1000-12-31') ) AS entrantDate, /*入职日期*/
+  MAX( IFNULL( DATE_FORMAT(a.SERVICEENDDATE, '%Y-%m-%d'),   '9999-12-31') ) AS leaveDate, /*离职日期*/
+  GROUP_CONCAT(DISTINCT a.ORIGINALPOSITION) AS 'position', /*职位*/
+  GROUP_CONCAT(DISTINCT b.PROFESSIONALTITLE) AS professionalTitle /*职称*/
+FROM
+  STK_Manage_Position AS a
+  INNER JOIN PUB_PERSONNELINFO AS b
+    ON a.PERSONID = b.PERSONID
+WHERE  LEFT(a.POSITIONID, 4) = ?
+	AND a.INSTITUTIONID IN (#orgGroup#)
+	AND UPPER(a.ServiceStatus) = 'Y' /*Y在职, N离职*/
+GROUP BY a.INSTITUTIONID, a.PERSONID
+ORDER BY  leaveDate desc,entrantDate desc,a.INSTITUTIONID, a.PERSONID
+]]>
+    </entry>
+
+    <!--离职变动信息-->
+    <entry key="leaveOffice">
+<![CDATA[
+/*离职变动信息*/
+SELECT
+  a.INSTITUTIONID AS institutionId,
+  LEFT(a.POSITIONID, 4) AS positionType,/*职位类型*/
+  a.FULLNAME AS 'name', /*名称*/
+  b.BIRTHYEAR AS birthYear, /*出生年*/
+  CASE
+    UPPER(b.GENDER)
+    WHEN 'M' THEN '男'
+    WHEN 'F' THEN '女'
+    ELSE '未知'
+  END AS sex, /*姓别*/
+  b.DEGREE_H AS degree, /*学历*/
+  MIN( IFNULL( DATE_FORMAT(a.SERVICESTARTDATE, '%Y-%m-%d'), '1000-12-31') ) AS entrantDate, /*入职日期*/
+  MAX( IFNULL( DATE_FORMAT(a.SERVICEENDDATE, '%Y-%m-%d'),   '9999-12-31') ) AS leaveDate, /*离职日期*/
+  GROUP_CONCAT(DISTINCT a.ORIGINALPOSITION) AS 'position', /*职位*/
+  GROUP_CONCAT(DISTINCT b.PROFESSIONALTITLE) AS professionalTitle /*职称*/
+FROM
+  STK_Manage_Position AS a
+  INNER JOIN PUB_PERSONNELINFO AS b
+    ON a.PERSONID = b.PERSONID
+WHERE
+    a.INSTITUTIONID IN (#orgGroup#)
+	AND YEAR(a.SERVICEENDDATE) >= YEAR(CURDATE()) - 2 /*只要三年内的数据*/
+	AND UPPER(a.ServiceStatus) = 'N' /*Y在职, N离职*/
+GROUP BY a.INSTITUTIONID, a.PERSONID,a.SERVICEENDDATE
+ORDER BY leaveDate desc,entrantDate desc,a.INSTITUTIONID, a.PERSONID
+]]>
+    </entry>
+
+    <!--最近一期高管持股数据-->
+    <entry key="holdShareTop1">
+<![CDATA[
+SELECT a.`INSTITUTIONID` AS institutionId,
+	a.`ENDDATE` AS endDate,
+	a.`FULLNAME` AS holdName,
+	a.`HOLDSHARES` AS holdNum
+FROM  STK_Manage_Salary a
+INNER JOIN (
+	SELECT INSTITUTIONID, MAX(ENDDATE) AS ENDDATE
+	FROM STK_Manage_Salary
+	WHERE INSTITUTIONID IN (101704, 101775)
+	GROUP BY INSTITUTIONID
+) AS b
+	ON a.`INSTITUTIONID` = b.INSTITUTIONID
+	AND a.`ENDDATE` = b.ENDDATE
+
+WHERE a.INSTITUTIONID IN (101704, 101775)
+ORDER BY a.`INSTITUTIONID`, a.`HOLDSHARES` DESC
+]]>
+    </entry>
+
+    <!--高管持股变动-->
+    <entry key="holdingchange">
+        <![CDATA[
+/*高管持股变动*/
+SELECT
+	a.`INSTITUTIONID` AS institutionId,
+	a.`CHANGEDATE` AS changeDate, /*变动日期*/
+	a.`SHAREHOLDERNAME` AS shareholderName, /*变动人*/
+	a.`CHANGINGSHARES` AS changeNum, /*变动数量*/
+	a.`AFTERCHANGINGSHARES` AS afterNum, /*结存数量*/
+	a.`AVGTRADINGPRICE` AS avgPrice,/*交易均价*/
+	a.`MANAGENAME` AS mangeName, /*董监高名称*/
+	a.`RELATIONSHIP` AS relationship, /*与高管关系*/
+	a.`CHANGEMETHOD` AS changeMethod, /*股份变动途径*/
+	a.`SYMBOL` AS symbol
+FROM STK_Manage_SharesChange a
+WHERE YEAR(a.`CHANGEDATE`) > YEAR(CURDATE()) - 3 /*近三年*/
+	AND a.`SYMBOL` IN (#symbolGroup#)
+ORDER BY a.`CHANGEDATE` DESC ,a.`INSTITUTIONID`
+                ]]>
+    </entry>
+
+</properties>

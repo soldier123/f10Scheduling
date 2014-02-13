@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>融资融券sql</comment>
+
+    <!--融资融券-->
+    <entry key="financingSql">
+<![CDATA[
+/*融资融券,一个股票的*/
+SELECT
+  DATE_FORMAT(st.TRADINGDATE, '%Y-%m-%d') AS tradingDate,/*信用交易日期*/
+  st.BUYVALUE AS buyValue,/*融资买入额*/
+  st.REPAYVALUE AS repayValue,/*融资偿还额*/
+  st.BALANCEVALUE AS balanceValue,/*融资余额*/
+  st.SELLSHARES AS sellShares,/*融券卖出量*/
+  st.REPAYSHARES AS repayShares,/*融券偿还量*/
+  st.BalanceSharesValue as balanceSharesValue /*融券余额*/
+FROM
+  SMT_TradeD st
+WHERE
+	st.SECURITYID = ?
+	AND TRADINGDATE > DATE_ADD(CURDATE(), INTERVAL -1 YEAR)
+order by TRADINGDATE desc
+]]>
+    </entry>
+
+        </properties>

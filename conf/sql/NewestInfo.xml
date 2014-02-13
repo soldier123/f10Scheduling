@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>最新动态的sql</comment>
+
+    <!--股票概念板块-->
+    <entry key="stockConceptPlate">
+<![CDATA[
+/*股票概念板块, 1011开头*/
+SELECT DISTINCT
+  a.`PLATEID` AS plateId,
+  a.symbol AS scode,
+  b.`PLATETITLE` AS plateTitle
+FROM
+  Plate_StockChangelatest a
+  INNER JOIN plate_PlateTree b
+    ON a.`PLATEID` = b.`PLATEID`
+WHERE a.`PLATEID` LIKE '1011%'
+]]>
+    </entry>
+
+    <!--投资要点-->
+    <entry key="investMainpoint">
+<![CDATA[
+/*投资要点*/
+SELECT DISTINCT
+  Symbol as scode,
+  MainBusiness as mainBusiness
+FROM
+  STK_InstitutionInfo
+]]>
+    </entry>
+
+    <!--大事提醒-->
+    <entry key="greatInventRemind">
+<![CDATA[
+/*大事提醒*/
+SELECT
+  SECURITYID AS secId,
+  EventType AS eventType,
+  PromptContent AS content,
+  DATE_FORMAT(DeclareDate, '%Y-%m-%d') AS declareDate
+FROM
+  News_SpecialTips
+WHERE SecurityTypeID = 'S0101' /*找股票的*/
+  AND DeclareDate >= DATE_ADD(CURDATE(), INTERVAL -1 YEAR)
+  AND SECURITYID IN (#secIdGroup#)
+ORDER BY  DeclareDate DESC, SECURITYID
+]]>
+    </entry>
+
+    <!--前三大主营业务-->
+    <entry key="top3MainBusiness">
+<![CDATA[
+/*前三大主营业务*/
+SELECT
+  a.DistributionStandard AS category /*分类*/,
+  a.INSTITUTIONID AS institutionId,
+  a.endDate AS endDate /*会计期间*/,
+  a.Item  AS itemName /*项目名称*/,
+  a.Earnings AS earnings /*本期收入金额*/,
+  a.EarningsProportion AS earningsProportion /*本期收入比例*/,
+  a.grossMargin AS grossMargin /*本期毛利金额*/,
+  a.GrossMarginRate AS grossMarginRate /*本期毛利率*/,
+  a.IncomeGrowthRate AS incomeGrowthRate /*收入增长率*/
+FROM  STK_Notes_OperateIncomeCosts a
+INNER JOIN (
+	SELECT
+		INSTITUTIONID, MAX(ENDDATE) AS ENDDATE
+	FROM STK_Notes_OperateIncomeCosts
+	WHERE STATETYPECODE = 1 AND DistributionStandard IN (1,3)
+	GROUP BY INSTITUTIONID
+) b
+	ON a.`INSTITUTIONID` = b.INSTITUTIONID
+	AND a.ENDDATE = b.ENDDATE
+
+WHERE a.StateTypeCode = 1 AND a.DistributionStandard IN  (1,3)
+ORDER BY a.`INSTITUTIONID`, a.`DISTRIBUTIONSTANDARD` desc, a.Earnings DESC
+]]>
+    </entry>
+
+    <!--财务比率-->
+    <entry key="financialRatiosShort">
+<![CDATA[
+/*财务比率*/
+SELECT
+  *
+FROM
+
+  (SELECT
+    distA.*,
+    FIND_IN_SET(distA.ENDDATE, rankData.SALLIST) AS RANK
+  FROM
+    (SELECT
+      a.INSTITUTIONID as institutionId,
+      a.`SYMBOL` AS scode,
+      DATE_FORMAT(a.`ENDDATE`, '%Y-%m-%d') AS endDate,/*截止日期*/
+      a.EPS AS eps,/*基本每股收益*/
+      a.DilutedEPS AS dilutedEps,/*稀释每股收益*/
+      a.NAV AS nav,/*每股净资产*/
+      a.OperatingNCFPerShare AS operatingNcfPerShare,/*每股经营活动产生的现金流量净额*/
+      b.ROEB AS roeb,/*净资产收益率B*/
+      b.OperatingMarginRatio AS operatingMarginRatio,/*营业毛利率*/
+      c.NetProfitGrowthB AS netProfitGrowthB,/*净利润增长率B*/
+      c.OperatingRevenueGrowthB AS operatingRevenueGrowthB /*营业收入增长率B*/
+    FROM
+      STK_FIN_PerShare a
+      INNER JOIN STK_FIN_EarnPower b
+        ON a.`INSTITUTIONID` = b.`INSTITUTIONID`
+        AND a.`STARTDATE` = b.`STARTDATE`
+        AND a.`ENDDATE` = b.`ENDDATE`
+        AND a.`STATETYPECODE` = b.`STATETYPECODE`
+      INNER JOIN STK_FIN_Development c
+        ON a.`INSTITUTIONID` = c.`INSTITUTIONID`
+        AND a.`STARTDATE` = c.`STARTDATE`
+        AND a.`ENDDATE` = c.`ENDDATE`
+        AND a.`STATETYPECODE` = c.`STATETYPECODE`
+    WHERE a.`STATETYPECODE` = 'A'
+      AND a.`STARTDATE` > ?
+      AND a.`INSTITUTIONID` IN (#orgIdList#) ) distA,
+
+    /*以下的子查询rankData 用于排名数据*/
+    (SELECT
+      a.INSTITUTIONID,
+      GROUP_CONCAT( DATE_FORMAT(a.`ENDDATE`, '%Y-%m-%d') ORDER BY a.`ENDDATE` DESC ) SALLIST
+    FROM
+      STK_FIN_PerShare a
+      INNER JOIN STK_FIN_EarnPower b
+        ON a.`INSTITUTIONID` = b.`INSTITUTIONID`
+        AND a.`STARTDATE` = b.`STARTDATE`
+        AND a.`ENDDATE` = b.`ENDDATE`
+        AND a.`STATETYPECODE` = b.`STATETYPECODE`
+      INNER JOIN STK_FIN_Development c
+        ON a.`INSTITUTIONID` = c.`INSTITUTIONID`
+        AND a.`STARTDATE` = c.`STARTDATE`
+        AND a.`ENDDATE` = c.`ENDDATE`
+        AND a.`STATETYPECODE` = c.`STATETYPECODE`
+    WHERE a.`STATETYPECODE` = 'A'
+      AND a.`STARTDATE` > ?
+      AND a.`INSTITUTIONID` IN (#orgIdList#)
+    GROUP BY a.INSTITUTIONID) rankData
+
+  WHERE distA.INSTITUTIONID = rankData.INSTITUTIONID) ttt
+
+WHERE RANK between 1 and 5
+
+ORDER BY scode, endDate DESC
+]]>
+    </entry>
+
+    <!--最新一期财务数据, 在首页画图要用到的-->
+    <entry key="lastPartFinanceDataShort">
+<![CDATA[
+/*最新一期财务数据, 在首页画图要用到的*/
+SELECT
+  a.`SYMBOL` AS scode,
+  a.`INSTITUTIONID` AS institutionId,
+  /* IFNULL(a.B001101, a.B0011) AS mainIncome, */
+  IF( ISNULL(a.B001101) || a.B001101 = 0.0, a.B0011 , a.B0011) AS mainIncome,
+  a.B002 AS netProfit,
+  b.`EPS` AS eps,
+  DATE_FORMAT(a.`ENDDATE`, '%Y-%m-%d') AS endDate
+FROM
+  STK_FIN_Income a
+  INNER JOIN (/*取最新一期,累计的*/
+	SELECT INSTITUTIONID, MAX(STARTDATE) AS STARTDATE, MAX(ENDDATE) AS ENDDATE, STATETYPECODE
+	FROM STK_FIN_Income
+	WHERE STATETYPECODE = 'A'
+		AND DATE_FORMAT(STARTDATE, '%m-%d') = '01-01'
+	GROUP BY INSTITUTIONID, STATETYPECODE
+  )c
+	ON a.`INSTITUTIONID` = c.INSTITUTIONID
+	AND a.`STARTDATE` = c.STARTDATE
+	AND a.`ENDDATE` = c.ENDDATE
+	AND a.STATETYPECODE = c.STATETYPECODE
+
+  INNER JOIN STK_FIN_PerShare b
+    ON a.`INSTITUTIONID` = b.`INSTITUTIONID`
+    AND a.`STARTDATE` = b.`STARTDATE`
+    AND a.`ENDDATE` = b.`ENDDATE`
+    AND a.`STATETYPECODE` = b.`STATETYPECODE`
+WHERE a.`STATETYPECODE` = 'A'
+	AND DATE_FORMAT(a.STARTDATE, '%m-%d') = '01-01'
+	AND DATE_FORMAT(b.STARTDATE, '%m-%d') = '01-01'
+	AND DATE_FORMAT(c.STARTDATE, '%m-%d') = '01-01'
+ORDER BY a.`SYMBOL`
+]]>
+    </entry>
+
+    <!--每只股票指定日期的财务数据-->
+    <entry key="eachStockFinanceData">
+<![CDATA[
+/*每只股票指定日期的财务数据*/
+SELECT
+  /* IFNULL(a.B001101, a.B0011) AS mainIncome, */
+  IF( ISNULL(a.B001101) || a.B001101 = 0.0, a.B0011 , a.B0011) AS mainIncome,
+  a.B002 AS netProfit,
+  b.`EPS` AS eps,
+  DATE_FORMAT(a.`ENDDATE`, '%Y-%m-%d') AS endDate
+FROM
+  STK_FIN_Income a
+  INNER JOIN STK_FIN_PerShare b
+    ON a.`INSTITUTIONID` = b.`INSTITUTIONID`
+    AND a.`STARTDATE` = b.`STARTDATE`
+    AND a.`ENDDATE` = b.`ENDDATE`
+    AND a.`STATETYPECODE` = b.`STATETYPECODE`
+    AND DATE_FORMAT(a.STARTDATE, '%m-%d') = '01-01'
+WHERE a.`STATETYPECODE` = 'A'
+AND a.`INSTITUTIONID` = ?
+AND a.`ENDDATE` IN (#reportDateStr#)
+
+ORDER BY a.`ENDDATE` asc
+]]>
+    </entry>
+
+    <!--从计算表里取上证指数的最新时间-->
+    <entry key="index_shangzhen_maxdate_2">
+<![CDATA[
+/*从计算表里取上证指数的最新时间*/
+SELECT
+  MAX(a.`TradingDate`) as tradingDate
+FROM
+  IDX_MarketReturns a
+WHERE a.`Symbol` = '000001'
+  AND a.`TradingDate` between ? and ?
+]]>
+    </entry>
+
+    <!--从计算表(有填充的)里提取 指数行情. 在指定时间里的 -->
+    <entry key="indexQuoteMarkIn_2">
+<![CDATA[
+/*从计算表(有填充的)里提取 指数行情. 在指定时间里的*/
+SELECT
+  Symbol AS scode,
+  ReturnWeekly AS w1,
+  ReturnMonthly AS m1,
+  Return3Month AS m3,
+  Return6Month AS m6,
+  ReturnCurrentYear AS utillNow
+FROM
+	IDX_MarketReturns
+WHERE TradingDate = ?
+AND Symbol IN (#index_list#)
+]]>
+    </entry>
+
+    <!--从计算表(有填充的)里提取 股票行情. 在指定时间里的-->
+    <entry key="stockQuoteMarkInDate_2">
+<![CDATA[
+/*从计算表(有填充的)里提取 股票行情. 在指定时间里的*/
+SELECT
+	Symbol AS scode,
+	ReturnWeekly1 AS w1,
+	ReturnMonthly1 AS m1,
+	Return3Month1 AS m3,
+	Return6Month1 AS m6,
+	YearRTD1 AS utillNow
+FROM
+	STK_MKT_Returns a
+WHERE
+	a.`SECURITYID` IN (#secIdGroup#)
+	AND TradingDate = ?
+]]>
+    </entry>
+
+    <!--上证指数指定时间最新-->
+    <entry key="index_shangzhen_maxdate">
+<![CDATA[
+/*上证指数指定时间最新*/
+SELECT
+  MAX(a.`TRADINGDATE`) as tradingDate
+FROM
+  IDX_MKT_Quotation a
+WHERE a.`SYMBOL` = '000001'
+  AND a.`TRADINGDATE` <= ?
+]]>
+    </entry>
+
+    <!--最新一期的研报评级统计情况 (统计周期为 一个月)-->
+    <entry key="top1LastReportRatingStatistic">
+<![CDATA[
+/*最新一期的研报评级统计情况 (统计周期为 一个月)*/
+SELECT
+    distA.SECURITYID AS secId,
+    DATE_FORMAT(distA.StatisticDate, '%Y-%m-%d') AS statisticDate,
+    IFNULL(buy, 0) AS buy,/*买入*/
+	IFNULL(outperform, 0) AS outperform,/*增持*/
+	IFNULL(neutral,0) AS neutral,/*中性*/
+	IFNULL(underperform,0) AS underperform,/*减持*/
+	IFNULL(sell,0) AS sell,/*Sell*/
+	IFNULL(rateSum,0) AS rateSum,/*评级数*/
+	rateResult/*综合评级*/
+
+  FROM
+    STK_AF_RatingStatistic AS distA
+
+    INNER JOIN
+
+    (
+		SELECT securityID, MAX(StatisticDate) AS StatisticDate
+		FROM STK_AF_RatingStatistic
+		WHERE StatisticDaysID='P7001' /*一个月*/
+		AND StatisticDate >= DATE_ADD( CURDATE(), INTERVAL -1 MONTH)
+		GROUP BY securityID
+    ) AS b
+
+    ON distA.securityID = b.securityID
+    AND distA.StatisticDate = b.StatisticDate
+  WHERE
+	distA.StatisticDaysID='P7001'
+	AND distA.StatisticDate >= DATE_ADD( CURDATE(), INTERVAL -1 MONTH)
+]]>
+    </entry>
+
+    <entry key="top1LastReportRatingStatisticWithSelfStatistic">
+        <![CDATA[
+SELECT a.SECURITYID as secId, a.STANDARDRATING as standardRating, COUNT(*) as numCount
+FROM stk_af_ratingchange a
+WHERE a.REPORTDATE >= DATE_ADD(NOW(), INTERVAL -1 MONTH) AND a.STANDARDRATING IS NOT NULL
+GROUP BY a.SECURITYID, a.STANDARDRATING
+ORDER BY a.SECURITYID
+        ]]>
+    </entry>
+
+</properties>
